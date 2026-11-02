@@ -1,0 +1,63 @@
+# Base de données seule : `docker compose up -d postgres`
+# Pile complète (Windows, macOS, Linux) : `docker compose --profile full up -d --build`  puis http://localhost:8080
+services:
+  postgres:
+    image: postgis/postgis:17-3.5
+    container_name: intelliflood-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-intelliflood}
+      POSTGRES_USER: ${POSTGRES_USER:-intelliflood}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-intelliflood}"]
+      interval: 5s
+      retries: 10
+
+  api:
+    profiles: ["full"]
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-intelliflood}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-intelliflood}
+      INGEST_API_KEY: ${INGEST_API_KEY:?Définir INGEST_API_KEY dans .env}
+      JWT_SECRET: ${JWT_SECRET:?Définir JWT_SECRET (>= 32 caractères) dans .env}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      WEATHER_ENABLED: ${WEATHER_ENABLED:-false}
+    depends_on: { postgres: { condition: service_healthy } }
+
+  web:
+    profiles: ["full"]
+    build: { context: ., dockerfile: apps/web/Dockerfile }
+    ports: ["8080:80"]
+    depends_on: [api]
+
+  # Option IoT : broker MQTT + pont vers l'API.  docker compose --profile full --profile iot up -d
+  mosquitto:
+    profiles: ["iot"]
+    image: eclipse-mosquitto:2
+    ports: ["1883:1883"]
+    volumes: ["./iot/mosquitto:/mosquitto/config", "mosquitto-data:/mosquitto/data"]
+
+  mqtt-bridge:
+    profiles: ["iot"]
+    build: { context: ., dockerfile: apps/api/Dockerfile }
+    command: ["python", "-m", "app.workers.mqtt_bridge"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-intelliflood}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-intelliflood}
+      MQTT_HOST: mosquitto
+      MQTT_USERNAME: ${MQTT_USERNAME:-}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-}
+    depends_on: [mosquitto, postgres]
+
+volumes:
+  mosquitto-data:
+  postgres-data:
