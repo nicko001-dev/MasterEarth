@@ -133,9 +133,10 @@ une priorité.
 3. La comparaison exhaustive des fonctions amont de `apps/world` reste à
    documenter; l'attribution et les licences sont précisées dans
    `apps/world/NOTICE-INTELLIFLOOD.md`.
-4. Le dépôt courant ne contient ni `.git`, ni daemon Docker actif. La base
-   PostgreSQL locale est toutefois accessible pour les tests API; ces résultats
-   ne valident pas encore un déploiement Compose reproductible.
+4. Le dépôt courant est bien un dépôt Git (confirmé lors de cette mise à jour).
+   L'état du daemon Docker n'a pas été vérifié ici. La base PostgreSQL locale
+   est accessible pour les tests API; ces résultats ne valident pas encore un
+   déploiement Compose reproductible.
 5. Seuils d'alerte/pluie, cadence opérationnelle des capteurs, contacts d'urgence,
    politiques d'astreinte, validation des observations, conflit de synchronisation,
    conservation/confidentialité et précision/validation hydraulique restent à
@@ -151,8 +152,8 @@ une priorité.
   les tests d'intégration PostgreSQL exécutés dans cet environnement.
 - Migrations : `alembic upgrade --sql base:head` généré avec succès; migration
   réelle non exécutée pendant cette passe (les tests utilisent le schéma local).
-- Frontend : `npm test` : **21 réussis**; `npm run typecheck` et
-  `npm run build` : réussis.
+- Frontend : `npm test` : **26 réussis**; `npm run build` (TypeScript et Vite) :
+  réussi lors de la mise à jour de la marque.
 - Simulation : parcours navigateur authentifié complet sur le MNT réel, résultat
   rendu sur la carte 2D; ni la précision hydraulique ni la couverture du MNT ne
   sont validées par ce test.

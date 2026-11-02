@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { App } from "./App";
 
@@ -16,11 +16,29 @@ it("renders the IntelliFlood platform shell and header without crashing", () => 
   render(<App />);
 
   expect(screen.getByRole("link", { name: "Retour à l'accueil" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Retour à l'accueil" }).querySelector("img")).toHaveAttribute(
+    "src",
+    "/brand/intelliflood-logo.png",
+  );
   expect(screen.getAllByRole("button", { name: "Connexion" }).length).toBeGreaterThanOrEqual(1);
   expect(screen.getByRole("button", { name: "Carte 2D" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Globe 3D" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: /IntelliFlood World/ })).toHaveAttribute(
     "href",
     `http://${window.location.hostname}:4173`,
+  );
+});
+
+it("uses the IntelliFlood logo in the login panel", () => {
+  render(<App />);
+  fireEvent.click(screen.getAllByRole("button", { name: "Connexion" })[0]);
+
+  expect(document.querySelector(".login-logo")).toHaveAttribute(
+    "src",
+    "/brand/intelliflood-logo.png",
+  );
+  expect(document.querySelector(".login-form-logo")).toHaveAttribute(
+    "src",
+    "/brand/intelliflood-logo.png",
   );
 });

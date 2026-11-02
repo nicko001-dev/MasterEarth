@@ -126,11 +126,7 @@ export function App() {
     <div className="app-shell">
       <header className="topbar">
         <a className="brand" href="/" aria-label="Retour à l'accueil">
-          <span className="brand-mark"><Icon name="droplet" size={22} /></span>
-          <span className="brand-copy">
-            <span>Intelli<b>flood</b></span>
-            <small>Prévenir · Protéger · Agir</small>
-          </span>
+          <img className="brand-logo" src="/brand/intelliflood-logo.png" alt="" />
         </a>
 
         <nav className="topnav" aria-label="Sections principales">

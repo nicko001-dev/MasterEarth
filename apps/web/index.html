@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Cpath d=%27M32 6C32 6 14 28 14 40a18 18 0 0 0 36 0C50 28 32 6 32 6z%27 fill=%27%230b3a5c%27 stroke=%27%231fb5d9%27 stroke-width=%274%27/%3E%3Ccircle cx=%2732%27 cy=%2730%27 r=%273%27 fill=%27%23f28c28%27/%3E%3C/svg%3E">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
     <title>IntelliFlood — Prévenir · Alerter · Gérer les inondations en Côte d'Ivoire</title>
     <meta name="description" content="IntelliFlood : plateforme de prévention, d'alerte et de gestion des risques d'inondation en Côte d'Ivoire.">
     <meta name="theme-color" content="#0b3a5c">
@@ -360,9 +360,7 @@
         /* ---- IntelliFlood : marque, en-tête et appels à l'action ---- */
         .logo { letter-spacing: .01em; font-size: 1.55rem; font-weight: 700; text-decoration: none; color: #fff; cursor: pointer; }
         .logo b { color: #1fb5d9; font-weight: 700; }
-        .logo-mark { width: 40px; height: 40px; flex: none; filter: drop-shadow(0 0 10px rgba(31,181,217,.45)); }
-        .logo-mark .pulse-dot { transform-origin: 32px 30px; animation: pulse 2s infinite ease-in-out; }
-        .logo-tag { display: block; font-size: .62rem; font-weight: 400; letter-spacing: .28em; text-transform: uppercase; color: #8da9be; margin-top: 2px; }
+        .logo-full { display: block; width: 220px; height: auto; }
         .step-title { letter-spacing: -.01em; font-weight: 600; }
         .top-actions { display: flex; align-items: center; gap: 14px; }
         .btn-sm { min-height: 42px; padding: 0 22px; font-size: .72rem; }
@@ -374,9 +372,7 @@
         .gauge-readout small { display: block; font-size: .6rem; letter-spacing: .2em; }
         @media (max-width: 768px) {
             header.top-bar { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
-            .logo-mark { width: 32px; height: 32px; }
-            .logo { font-size: 1.25rem; }
-            .logo-tag { display: none; }
+            .logo-full { width: 180px; }
             .top-actions { display: contents; }
             .btn-sm { min-height: 40px; padding: 0 16px; }
             .telemetry { order: 3; width: 100%; justify-content: space-between; gap: 8px; padding: 8px 14px; font-size: .62rem; letter-spacing: .06em; }
@@ -405,13 +401,7 @@
     <!-- En-tête : marque, indicateurs de simulation, accès plateforme -->
     <header class="hud top-bar">
         <a class="logo" href="#" aria-label="IntelliFlood — accueil">
-            <svg class="logo-mark" viewBox="0 0 64 64" fill="none" aria-hidden="true">
-                    <path d="M32 6C32 6 14 28 14 40a18 18 0 0 0 36 0C50 28 32 6 32 6z" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
-                    <circle class="pulse-dot" cx="32" cy="30" r="3" fill="#f28c28"/>
-                    <path d="M21 42q5.5-5 11 0t11 0" stroke="#1fb5d9" stroke-width="3.4" stroke-linecap="round"/>
-                    <g stroke="#f28c28" stroke-width="3.2" stroke-linecap="round"><path d="M11 25q-3.5 7 0 14"/><path d="M5.5 21q-7 11 0 22"/><path d="M53 25q3.5 7 0 14"/><path d="M58.5 21q7 11 0 22"/></g>
-                </svg>
-            <span>Intelli<b>flood</b><span class="logo-tag">Prévenir · Alerter · Gérer</span></span>
+            <img class="logo-full" src="/brand/intelliflood-logo.png" alt="">
         </a>
         <div class="top-actions">
             <div class="telemetry" aria-label="Indicateurs du scénario simulé">

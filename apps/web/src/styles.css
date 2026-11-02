@@ -120,20 +120,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
   border-radius: 14px;
   padding: 4px 6px 4px 2px;
 }
-.brand-mark {
-  width: 42px; height: 42px;
-  display: grid; place-items: center;
-  border-radius: 13px;
-  color: #eaf9ff;
-  background:
-    radial-gradient(circle at 30% 22%, rgba(255, 255, 255, 0.42), transparent 35%),
-    linear-gradient(145deg, #1fb5e6, #2b6df0 72%);
-  box-shadow: 0 10px 24px rgba(27, 139, 214, 0.38), inset 0 0 0 1px rgba(255, 255, 255, 0.18);
-}
-.brand-copy { display: grid; line-height: 1.02; }
-.brand-copy > span { font-size: 1.34rem; font-weight: 650; letter-spacing: -0.035em; color: #fff; }
-.brand-copy b { font-weight: 350; color: #6fd6f4; }
-.brand-copy small { margin-top: 5px; font-size: 0.62rem; letter-spacing: 0.11em; text-transform: uppercase; color: #85a9c0; }
+.brand-logo { display: block; width: 178px; height: 50px; object-fit: contain; }
 
 .topnav {
   display: flex;
@@ -1200,17 +1187,7 @@ input[type="range"]::-moz-range-thumb {
   border: 1px solid rgba(55, 198, 244, 0.22);
   box-shadow: 0 0 0 28px rgba(55, 198, 244, 0.035), 0 0 0 60px rgba(55, 198, 244, 0.025);
 }
-.login-aside-logo {
-  width: 44px; height: 44px;
-  display: grid; place-items: center;
-  border-radius: 13px;
-  background: linear-gradient(145deg, #29bfe9, #2f72ef);
-  color: #eafaff;
-  font-size: 1.2rem;
-  box-shadow: 0 10px 24px rgba(20, 120, 200, 0.4);
-}
-.login-aside strong { font-size: 1.55rem; letter-spacing: -0.04em; color: #fff; }
-.login-aside strong b { font-weight: 350; color: #6fd6f4; }
+.login-logo { display: block; width: min(100%, 230px); height: auto; }
 .login-aside p { margin: 0; color: #a9c9dd; font-size: 0.78rem; line-height: 1.55; }
 .login-aside ul { display: grid; gap: 9px; margin: 6px 0 0; padding: 0; list-style: none; }
 .login-aside li { position: relative; padding-left: 18px; color: #c3dded; font-size: 0.71rem; line-height: 1.4; }
@@ -1218,6 +1195,7 @@ input[type="range"]::-moz-range-thumb {
 .login-aside small { margin-top: auto; color: #7899b0; font-size: 0.62rem; line-height: 1.45; }
 
 .login-form { position: relative; display: grid; gap: 12px; padding: 30px 28px; overflow-y: auto; }
+.login-form-logo { display: none; }
 .login-form h2 { margin: 0; color: #fff; font-size: 1.25rem; letter-spacing: -0.02em; text-transform: none; }
 .login-form > .muted { margin: 0 0 2px; font-size: 0.7rem; }
 .login-form .field span { color: var(--muted-strong); }
@@ -1293,7 +1271,6 @@ input[type="range"]::-moz-range-thumb {
 }
 
 @media (max-width: 1024px) {
-  .brand-copy small { display: none; }
   .user-copy { display: none; }
   .insight-rail { width: 322px; }
   .left-rail { width: 322px; }
@@ -1328,9 +1305,9 @@ input[type="range"]::-moz-range-thumb {
   .login-card { grid-template-columns: minmax(0, 1fr); }
   .login-aside { display: none; }
   .login-form { padding: 28px 22px; }
+  .login-form-logo { display: block; width: min(100%, 190px); height: auto; }
   .status-pill { display: none; }
-  .brand-mark { width: 36px; height: 36px; border-radius: 11px; }
-  .brand-copy > span { font-size: 1.15rem; }
+  .brand-logo { width: 148px; height: 42px; }
   .topbar-login { padding: 0 12px; }
   .map-toolbar .layer-toggles button { font-size: 0; gap: 0; width: 34px; justify-content: center; }
   .map-toolbar .layer-toggles button i { width: 11px; height: 11px; }

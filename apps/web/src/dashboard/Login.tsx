@@ -59,8 +59,7 @@ export function Login({ onLogged, onCancel }: Props) {
     >
       <div className="login-card" role="dialog" aria-modal="true" aria-labelledby="login-title">
         <aside className="login-aside" aria-hidden="true">
-          <span className="login-aside-logo">◉</span>
-          <strong>Intelli<b>flood</b></strong>
+          <img className="login-logo" src="/brand/intelliflood-logo.png" alt="" />
           <p>Prévenir, protéger et agir face aux inondations urbaines.</p>
           <ul>
             <li>Surveillance des capteurs et de la météo</li>
@@ -71,6 +70,7 @@ export function Login({ onLogged, onCancel }: Props) {
         </aside>
         <form className="login-form" onSubmit={(event) => void submit(event)}>
           <button type="button" className="modal-close" onClick={onCancel} aria-label="Fermer" disabled={busy}>×</button>
+          <img className="login-form-logo" src="/brand/intelliflood-logo.png" alt="" />
           <h2 id="login-title">{creatingAccount ? "Créer un compte citoyen" : "Connexion"}</h2>
           <p className="muted">
             {creatingAccount
