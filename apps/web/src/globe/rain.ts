@@ -17,7 +17,7 @@ uniform vec2 u_ground;
 uniform float u_radius;
 uniform float u_max_depth;
 
-/** Profondeur maximale d'inondation (m) provenant du résultat de simulation. */
+// Profondeur maximale d'inondation (m) provenant du résultat de simulation.
 uniform float u_flood_depth;
 
 /** Longueur écran minimale du rideau : une pluie vue de dessus serait sinon

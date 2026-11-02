@@ -189,6 +189,11 @@ npm run dev
 
 L'application est accessible sur `http://localhost:5173` (ou le port défini dans `VITE_PORT`).
 
+Depuis la racine sous Windows, `.\start.bat` démarre l'API, le frontend Web
+et l'application autonome IntelliFlood World. Cette dernière est accessible
+sur `http://localhost:4173`; pour ne démarrer qu'elle, utilisez
+`.\start.bat world`. Elle nécessite Node.js 24.14 ou plus récent.
+
 ### 4. Vérification des types TypeScript et build de production
 
 ```bash

@@ -19,4 +19,8 @@ it("renders the IntelliFlood platform shell and header without crashing", () => 
   expect(screen.getAllByRole("button", { name: "Connexion" }).length).toBeGreaterThanOrEqual(1);
   expect(screen.getByRole("button", { name: "Carte 2D" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Globe 3D" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /IntelliFlood World/ })).toHaveAttribute(
+    "href",
+    `http://${window.location.hostname}:4173`,
+  );
 });

@@ -1,12 +1,18 @@
 @echo off
 REM IntelliFlood - Script de démarrage automatisé
-REM Usage: start.bat [api|web|both]
+REM Usage: start.bat [api|web|world|both|stop]
 
 setlocal EnableDelayedExpansion
 
 echo ========================================
 echo IntelliFlood - Démarrage automatisé
 echo ========================================
+
+REM Traiter les lancements isolés sans démarrer Docker ni les migrations
+if "%1"=="web" goto start_web
+if "%1"=="api" goto start_api
+if "%1"=="world" goto world_only
+if "%1"=="stop" goto stop_services
 
 REM Vérifier si Docker est disponible
 docker --version >nul 2>&1
@@ -20,10 +26,6 @@ if %ERRORLEVEL% equ 0 (
     )
     timeout /t 5 /nobreak >nul
 )
-
-REM Traiter l'argument de ligne de commande
-if "%1"=="web" goto web_only
-if "%1"=="api" goto api_only
 
 echo.
 echo [2/5] Configuration des environnements...
@@ -58,15 +60,13 @@ echo ========================================
 echo OPTIONS DE DEMARRAGE:
 echo ========================================
 echo   start.bat api    - Demarrer uniquement le backend API (http://localhost:8000)
-echo   start.bat web    - Demarrer uniquement le frontend Web (http://localhost:5173)
-echo   start.bat both   - Demarrer les deux (par defaut)
+echo   start.bat web    - Demarrer le frontend Web et IntelliFlood World
+echo   start.bat world  - Demarrer uniquement IntelliFlood World (http://localhost:4173)
+echo   start.bat both   - Demarrer l'API, le Web et IntelliFlood World (par defaut)
 echo   start.bat stop   - Arreter les services en arriere-plan
 echo ========================================
 echo.
 
-if "%1"=="api" goto start_api
-if "%1"=="web" goto start_web
-if "%1"=="stop" goto stop_services
 goto start_both
 
 :start_api
@@ -92,6 +92,7 @@ if not defined NodejsCommand (
 )
 start "IntelliFlood Web" cmd /c "npm run dev"
 cd ..\..
+call :launch_world
 echo Web demarre sur http://localhost:5173
 goto end
 
@@ -107,12 +108,26 @@ cd ..\..
 cd apps/web
 start "IntelliFlood Web" cmd /c "npm run dev"
 cd ..\..
+call :launch_world
 echo.
 echo SERVIS DEMARRS:
 echo   API Backend:  http://localhost:8000
 echo   Swagger UI:   http://localhost:8000/docs
 echo   Frontend Web: http://localhost:5173
+echo   IntelliFlood World: http://localhost:4173
 goto end
+
+:world_only
+call :launch_world
+goto end
+
+:launch_world
+echo Demarrage d'IntelliFlood World...
+cd apps\world
+start "IntelliFlood World" cmd /k "npm run dev -- --host 127.0.0.1 --port 4173 --strictPort"
+cd ..\..
+echo IntelliFlood World demarre sur http://localhost:4173
+exit /b 0
 
 :stop_services
 echo Arret des services IntelliFlood...

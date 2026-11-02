@@ -25,10 +25,7 @@ const defaultApiBaseUrl = () => {
 
 const defaultWorldUrl = () => {
   const host = runtimeHost();
-  // Port 4173 n'est pas systématiquement disponible ; on utilise le même
-  // hostname que la page mais sur le port de l'API (8000), ou on laisse vide
-  // si l'utilisateur veut le configurer via VITE_INTELLIFLOOD_WORLD_URL.
-  return host ? `${runtimeProtocol()}//${host}:8000` : "http://127.0.0.1:8000";
+  return host ? `${runtimeProtocol()}//${host}:4173` : "http://127.0.0.1:4173";
 };
 
 export const config = {
