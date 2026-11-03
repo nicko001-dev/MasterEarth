@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from app.api import auth_deps
@@ -25,10 +25,22 @@ class BulletinIn(BaseModel):
     valid_at: datetime
     precip_mm: float = Field(ge=0, le=500, description="Cumul sur l'heure écoulée (mm).")
 
+    @field_validator("source")
+    @classmethod
+    def reject_reserved_source(cls, value: str) -> str:
+        if value in {"open-meteo", "openweather", "iot-rain-gauge"}:
+            raise ValueError("Cette source est réservée à son connecteur dédié.")
+        return value
+
 
 @router.get("")
 def get_weather(db: Session = Depends(get_db_session)) -> list[dict]:
     return weather.summary(db)
+
+
+@router.get("/status")
+def get_weather_status(db: Session = Depends(get_db_session)) -> dict:
+    return weather.source_status(db)
 
 
 @router.post("/refresh")

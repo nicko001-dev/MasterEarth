@@ -58,12 +58,33 @@ export function AIProviderSettings({ token }: Props) {
 
   const save = async (provider: AIProvider) => {
     const models = selected[provider.id] ?? [];
-    if (!confirmed[provider.id]) { setError("Confirmez l'utilisation d'une offre gratuite avant l'enregistrement."); return; }
-    if (!models.length) { setError("Sélectionnez au moins un modèle gratuit."); return; }
+    const key = keys[provider.id]?.trim();
+    const discovered = catalogs[provider.id] && catalogs[provider.id].length > 0;
+
+    if (!confirmed[provider.id]) {
+      setError("Cochez la case « Je confirme que ce compte utilise une offre gratuite » avant l'enregistrement.");
+      return;
+    }
+    if (!discovered) {
+      setError(`Cliquez d'abord sur « Découvrir les modèles gratuits » pour ${provider.name}, puis sélectionnez au moins un modèle.`);
+      return;
+    }
+    if (!models.length) {
+      setError(`Sélectionnez au moins un modèle gratuit dans la liste ci-dessus pour ${provider.name}.`);
+      return;
+    }
+    if (!provider.configured && !key) {
+      setError("Saisissez une clé API (8 caractères minimum).");
+      return;
+    }
+    if (key && key.length < 8) {
+      setError("La clé API est trop courte (8 caractères minimum).");
+      return;
+    }
     setBusy(provider.id); setError(null); setMessage(null);
     try {
       await saveAIProvider(token, provider.id, {
-        ...(keys[provider.id]?.trim() ? { api_key: keys[provider.id].trim() } : {}),
+        ...(key ? { api_key: key } : {}),
         selected_models: models,
         enabled: enabled[provider.id] ?? true,
         free_tier_confirmed: true,
@@ -73,7 +94,15 @@ export function AIProviderSettings({ token }: Props) {
       await reload();
       setMessage(`${provider.name} configuré. La clé n'est pas réaffichée.`);
     } catch (reason) {
-      setError((reason as Error).message);
+      const msg = (reason as Error).message;
+      const detailMsg = msg.includes("Aucun modèle gratuit")
+        ? "Aucun modèle gratuit n'est disponible pour ce fournisseur avec cette clé. Vérifiez la clé ou essayez un autre fournisseur."
+        : msg.includes("modèle choisi")
+          ? "Un ou plusieurs modèles sélectionnés ne sont pas disponibles (gratuits). Relancez la découverte des modèles."
+          : msg.includes("422")
+            ? "Échec de validation (422) : découvrez d'abord les modèles, sélectionnez au moins un modèle gratuit, et saisissez une clé valide (≥ 8 caractères)."
+            : msg;
+      setError(detailMsg);
     } finally {
       setBusy(null);
     }

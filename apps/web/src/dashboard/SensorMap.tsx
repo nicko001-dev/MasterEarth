@@ -2,7 +2,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
 import { SensorState, WeatherItem } from "../services/api";
-import { createFloodCanvas, FloodRun } from "../services/simulation";
+import { AutomaticFloodEvent, createFloodCanvas, FloodRun } from "../services/simulation";
 import { LEVEL_COLOR } from "../services/levels";
 
 export { LEVEL_COLOR } from "../services/levels";
@@ -44,6 +44,7 @@ export function SensorMap({
   weather = [],
   onSelect,
   simulation,
+  automaticFloods = [],
   frameIndex = 0,
   baseLayer = "osm",
   showSensors = true,
@@ -55,6 +56,7 @@ export function SensorMap({
   weather?: WeatherItem[];
   onSelect?: (code: string) => void;
   simulation?: FloodRun | null;
+  automaticFloods?: AutomaticFloodEvent[];
   frameIndex?: number;
   baseLayer?: BaseLayer;
   showSensors?: boolean;
@@ -69,6 +71,7 @@ export function SensorMap({
   const alertLayer = useRef<L.LayerGroup | null>(null);
   const baseTile = useRef<L.TileLayer | null>(null);
   const simulationOverlay = useRef<L.ImageOverlay | null>(null);
+  const automaticOverlay = useRef<L.LayerGroup | null>(null);
   const fitted = useRef(false);
   const fittedSimulation = useRef<number | null>(null);
   const [simulationError, setSimulationError] = useState<string | null>(null);
@@ -94,6 +97,7 @@ export function SensorMap({
     sensorLayer.current = L.layerGroup().addTo(instance);
     weatherLayer.current = L.layerGroup().addTo(instance);
     alertLayer.current = L.layerGroup().addTo(instance);
+    automaticOverlay.current = L.layerGroup().addTo(instance);
 
     return () => {
       instance.remove();
@@ -102,6 +106,7 @@ export function SensorMap({
       sensorLayer.current = null;
       weatherLayer.current = null;
       alertLayer.current = null;
+      automaticOverlay.current = null;
     };
     // The map is created once; props are applied by the effects below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -113,7 +118,8 @@ export function SensorMap({
     weatherLayer.current.clearLayers();
     alertLayer.current.clearLayers();
     sensors.forEach((sensor) => {
-      const color = LEVEL_COLOR[sensor.alert_level];
+      const currentMeasurement = sensor.health_status === "online";
+      const color = currentMeasurement ? LEVEL_COLOR[sensor.alert_level] : "#7f91a6";
       L.circleMarker([sensor.lat, sensor.lon], {
         radius: 9,
         color: "#ffffff",
@@ -121,10 +127,12 @@ export function SensorMap({
         fillColor: color,
         fillOpacity: 0.96,
       })
-        .bindTooltip(`${sensor.name} — ${sensor.water_level_cm == null ? "pas de mesure" : `${sensor.water_level_cm.toFixed(0)} cm`}`)
+        .bindTooltip(sensor.kind === "rain_gauge"
+          ? `${sensor.name} — pluviomètre`
+          : `${sensor.name} — ${sensor.water_level_cm == null ? "pas de mesure" : `${sensor.water_level_cm.toFixed(0)} cm`}${currentMeasurement ? "" : " — mesure non actuelle"}`)
         .on("click", () => onSelect?.(sensor.code))
         .addTo(sensorLayer.current!);
-      if (sensor.alert_level !== "green") {
+      if (currentMeasurement && sensor.alert_level !== "green") {
         L.marker([sensor.lat, sensor.lon], {
           icon: L.divIcon({ className: "hazard-map-icon flood-hazard", html: "<span aria-hidden=\"true\">⚠</span>", iconSize: [30, 30], iconAnchor: [15, 15] }),
           title: `Alerte inondation — ${sensor.name}`,
@@ -133,20 +141,45 @@ export function SensorMap({
       }
     });
     weather.forEach((item) => {
+      const observed = item.observed_precip_mm_h;
+      const modeled = item.modeled_precip_mm_h;
+      const forecast = item.forecast_intensity_3h_mm_h ?? item.intensity_3h_mm_h;
+      const level = item.observed_level ?? item.forecast_level ?? item.level;
+      const isRaining = (observed ?? modeled ?? 0) > 0;
+      // Zone violette au sol pour les points où il pleut actuellement
+      if (isRaining) {
+        L.circle([item.lat, item.lon], {
+          radius: 2600,
+          color: "#7700aa",
+          weight: 2,
+          fillColor: "#7700aa",
+          fillOpacity: 0.15,
+          dashArray: "6 4",
+          interactive: false,
+        }).addTo(weatherLayer.current!);
+      }
       L.circleMarker([item.lat, item.lon], {
         radius: 17,
-        color: LEVEL_COLOR[item.level],
+        color: LEVEL_COLOR[level],
         weight: 2,
         dashArray: "4 5",
-        fillColor: LEVEL_COLOR[item.level],
+        fillColor: LEVEL_COLOR[level],
         fillOpacity: 0.08,
       })
-        .bindTooltip(`${item.name} — pluie : ${item.intensity_3h_mm_h} mm/h (3 h), ${item.accumulated_24h_mm} mm (24 h)`)
+        .bindTooltip(
+          `${item.name} — ${
+            observed != null
+              ? `${observed} mm/h rapportés`
+              : modeled != null
+                ? `${modeled} mm/h estimés maintenant par Open-Meteo`
+                : "aucune pluie actuelle rapportée"
+          } ; prévision max. à 3 h : ${forecast} mm/h`,
+        )
         .addTo(weatherLayer.current!);
-      if (item.intensity_3h_mm_h > 0 || item.level !== "green") {
+      if ((observed ?? modeled ?? 0) > 0 || forecast > 0 || level !== "green") {
         L.marker([item.lat, item.lon], {
-          icon: L.divIcon({ className: "hazard-map-icon rain-hazard", html: `<span aria-hidden="true">${item.level === "green" ? "☔" : "⚠"}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }),
-          title: `Risque de pluie — ${item.name}`,
+          icon: L.divIcon({ className: "hazard-map-icon rain-hazard", html: `<span aria-hidden="true">${level === "green" ? "☔" : "⚠"}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }),
+          title: `${observed != null ? "Pluie rapportée" : modeled != null ? "Pluie estimée par le modèle" : "Risque/prévision de pluie"} — ${item.name}`,
           keyboard: true,
         }).addTo(alertLayer.current!);
       }
@@ -188,6 +221,29 @@ export function SensorMap({
   }, [simulation, frameIndex]);
 
   useEffect(() => {
+    const layer = automaticOverlay.current;
+    if (!layer) return;
+    layer.clearLayers();
+    try {
+      automaticFloods.forEach((event) => {
+        const { result } = event.simulation;
+        const canvas = createFloodCanvas(result, 0, true, 4);
+        L.imageOverlay(canvas.toDataURL(), [
+          [result.bbox.south, result.bbox.west],
+          [result.bbox.north, result.bbox.east],
+        ], {
+          opacity: 0.62,
+          interactive: false,
+          className: "flood-overlay automatic-flood-overlay",
+        }).addTo(layer);
+      });
+      setSimulationError(null);
+    } catch (reason) {
+      setSimulationError(reason instanceof Error ? reason.message : "Impossible d'afficher les impacts automatiques.");
+    }
+  }, [automaticFloods]);
+
+  useEffect(() => {
     const currentMap = map.current;
     if (!currentMap || !sensorLayer.current || !weatherLayer.current || !alertLayer.current) return;
     if (showSensors) sensorLayer.current.addTo(currentMap); else sensorLayer.current.remove();
@@ -207,7 +263,8 @@ export function SensorMap({
     <div className="map-container">
       <div ref={el} className="map" role="region" aria-label="Carte des capteurs" />
       {simulationError && <p className="map-error" role="alert">{simulationError}</p>}
-      {simulation && <p className="map-simulation-caption">Simulation indicative MNT · jaune : étendue possible</p>}
+      {simulation && <p className="map-simulation-caption">Simulation manuelle indicative MNT · bleu clair : étendue possible</p>}
+      {!simulation && automaticFloods.length > 0 && <p className="map-simulation-caption">Estimations automatiques MNT · impacts non confirmés sur le terrain</p>}
     </div>
   );
 }

@@ -9,9 +9,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError, ValidationAppError
 from app.domain import alerting, sensor_health
-from app.domain.models import Alert, Reading, Sensor
+from app.domain.models import Alert, Reading, Sensor, WeatherObservation
 
 LABELS = {"green": "Vert", "orange": "Orange", "red": "Rouge"}
 
@@ -47,8 +47,14 @@ def get_sensor(db: Session, code: str) -> Sensor:
     return sensor
 
 
-def create_sensor(db: Session, code: str, name: str, lon: float, lat: float, mount_height_cm: float, bankfull_cm: float | None = None) -> Sensor:
-    sensor = Sensor(code=code, name=name, mount_height_cm=mount_height_cm, bankfull_cm=bankfull_cm,
+def create_sensor(db: Session, code: str, name: str, lon: float, lat: float, mount_height_cm: float | None, kind: str = "water_level", bankfull_cm: float | None = None) -> Sensor:
+    if kind == "rain_gauge":
+        # The legacy non-null water-sensor field is unused for rain gauges.
+        mount_height_cm = 0.0
+        bankfull_cm = None
+    if mount_height_cm is None:
+        raise ValueError("La hauteur de fixation est requise pour un capteur de niveau d'eau.")
+    sensor = Sensor(code=code, name=name, mount_height_cm=mount_height_cm, kind=kind, bankfull_cm=bankfull_cm,
                     location=from_shape(Point(lon, lat), srid=4326))
     db.add(sensor)
     try:
@@ -67,6 +73,11 @@ def _last_reading(db: Session, sensor_id: int) -> Reading | None:
 def ingest(db: Session, code: str, samples: list[float], measured_at: datetime | None) -> tuple[Reading, Alert | None]:
     """Enregistre une rafale de relevés : médiane, niveau, vitesse de montée, persistance."""
     sensor = get_sensor(db, code)
+    if sensor.kind != "water_level":
+        raise ValidationAppError(
+            f"Le capteur « {code} » est un pluviomètre, pas un capteur de niveau d'eau.",
+            code="SENSOR_TYPE_MISMATCH",
+        )
     t = thresholds()
     when = measured_at or datetime.now(timezone.utc)
     if when.tzinfo is None:
@@ -102,26 +113,53 @@ def ingest(db: Session, code: str, samples: list[float], measured_at: datetime |
 def sensor_state(db: Session, sensor: Sensor) -> dict:
     point = to_shape(sensor.location)
     last = _last_reading(db, sensor.id)
+    rain = None
+    rain_at = None
+    if sensor.kind == "rain_gauge":
+        rain_row = db.execute(
+            select(WeatherObservation)
+            .where(
+                WeatherObservation.source == "iot-rain-gauge",
+                WeatherObservation.point_key == f"{point.y:.2f},{point.x:.2f}",
+            )
+            .order_by(WeatherObservation.valid_at.desc())
+            .limit(1)
+        ).scalar_one_or_none()
+        if rain_row is not None:
+            rain = rain_row.precip_mm
+            rain_at = rain_row.valid_at
     alert = db.execute(select(Alert).where(Alert.sensor_id == sensor.id)
                        .order_by(Alert.triggered_at.desc(), Alert.id.desc()).limit(1)).scalar_one_or_none()
     health = sensor_health.evaluate_sensor_health(
-        last.measured_at if last else None,
+        rain_at if sensor.kind == "rain_gauge" else (last.measured_at if last else None),
         settings.sensor_stale_minutes,
     )
-    return {"code": sensor.code, "name": sensor.name, "lon": point.x, "lat": point.y, "status": sensor.status, "bankfull_cm": sensor.bankfull_cm,
+    return {"code": sensor.code, "name": sensor.name, "kind": sensor.kind, "lon": point.x, "lat": point.y, "status": sensor.status, "bankfull_cm": sensor.bankfull_cm,
             "alert_level": alert.level if alert else "green",
-            "water_level_cm": last.water_level_cm if last else None,
-            "last_measured_at": last.measured_at if last else None,
+            "water_level_cm": last.water_level_cm if last and sensor.kind == "water_level" else None,
+            "rain_mm_h": rain,
+            "last_measured_at": rain_at if sensor.kind == "rain_gauge" else (last.measured_at if last else None),
             "health_status": health.status,
             "minutes_since_last_reading": health.minutes_since_last_reading}
 
 
 def list_sensors(db: Session) -> list[dict]:
-    return [sensor_state(db, s) for s in db.execute(select(Sensor).order_by(Sensor.code)).scalars()]
+    sensors = db.execute(
+        select(Sensor)
+        .where(~Sensor.code.like("DEMO-%"))
+        .order_by(Sensor.code)
+    ).scalars()
+    return [sensor_state(db, sensor) for sensor in sensors]
 
 
 def list_alerts(db: Session, limit: int = 50) -> list[dict]:
-    rows = db.execute(select(Alert, Sensor.code).join(Sensor).order_by(Alert.triggered_at.desc(), Alert.id.desc()).limit(limit)).all()
+    rows = db.execute(
+        select(Alert, Sensor.code)
+        .join(Sensor)
+        .where(~Sensor.code.like("DEMO-%"))
+        .order_by(Alert.triggered_at.desc(), Alert.id.desc())
+        .limit(limit)
+    ).all()
     return [{"id": a.id, "sensor_code": c, "level": a.level, "water_level_cm": a.water_level_cm,
              "triggered_at": a.triggered_at, "message": a.message} for a, c in rows]
 

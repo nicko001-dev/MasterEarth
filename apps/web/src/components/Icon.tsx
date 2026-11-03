@@ -26,7 +26,9 @@ export type IconName =
   | "zoom-in"
   | "zoom-out"
   | "logout"
-  | "chevron";
+  | "chevron"
+  | "mic"
+  | "mic-on";
 
 const paths: Record<IconName, string[]> = {
   map: ["M3 6.5 9 3l6 3.5L21 3v14.5L15 21l-6-3.5L3 21V6.5Z", "M9 3v14.5M15 6.5V21"],
@@ -55,6 +57,8 @@ const paths: Record<IconName, string[]> = {
   "zoom-out": ["M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z", "m21 21-4.3-4.3", "M8 11h6"],
   logout: ["M9 3H4v18h5", "M16 17l5-5-5-5", "M21 12H9"],
   chevron: ["m9 6 6 6-6 6"],
+  mic: ["M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z", "M19 10v2a7 7 0 0 1-14 0v-2"],
+  "mic-on": ["M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z", "M19 10v2a7 7 0 0 1-14 0v-2", "M12 19a3 3 0 0 1-3-3h6a3 3 0 0 1-3 3Z"],
 };
 
 export function Icon({ name, size = 18, ...rest }: { name: IconName; size?: number } & Omit<SVGProps<SVGSVGElement>, "name">) {

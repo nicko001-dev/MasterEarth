@@ -70,8 +70,9 @@ class Settings(BaseSettings):
     sim_max_radius_m: float = 5000.0
 
     # Météo : fournisseur automatique (Open-Meteo : gratuit hors usage commercial, ~10 000 requêtes/jour)
-    weather_enabled: bool = False
+    weather_enabled: bool = True
     weather_refresh_minutes: int = 30
+    weather_openweather_api_key: str = ""
     weather_points: str = (
         "Abidjan:5.36:-4.01,Bouaké:7.69:-5.03,Yamoussoukro:6.83:-5.28,San-Pédro:4.75:-6.64,"
         "Korhogo:9.46:-5.63,Daloa:6.88:-6.45,Man:7.41:-7.55"

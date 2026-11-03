@@ -134,21 +134,40 @@ export async function analyzeImage(
 }
 
 export function localAssistantSummary(
-  sensors: { water_level_cm: number | null; health_status: string; alert_level: string }[],
+  sensors: {
+    water_level_cm: number | null;
+    health_status: string;
+    alert_level: string;
+    last_measured_at?: string | null;
+  }[],
   alerts: { level: string }[],
-  weather: { level: string }[],
+  weather: {
+    observed_precip_mm_h?: number | null;
+    modeled_precip_mm_h?: number | null;
+  }[],
   mode: "answer" | "report" = "answer",
   transportUnavailable = false,
 ): AssistantResult {
+  const currentSensors = transportUnavailable
+    ? []
+    : sensors.filter(
+        (sensor) => sensor.health_status === "online"
+          && sensor.last_measured_at != null
+          && Date.now() - Date.parse(sensor.last_measured_at) <= 60 * 60_000
+          && Date.parse(sensor.last_measured_at) <= Date.now() + 5 * 60_000,
+      );
+  const currentWeather = transportUnavailable ? [] : weather;
   const levels = (items: { level: string }[]) => ({
     red: items.filter((item) => item.level === "red").length,
     orange: items.filter((item) => item.level === "orange").length,
   });
-  const waterLevels = levels(sensors.map((sensor) => ({ level: sensor.alert_level })));
+  const waterLevels = levels(currentSensors.map((sensor) => ({ level: sensor.alert_level })));
   const notice = transportUnavailable
-    ? "Mode local après échec de connexion API. La requête a peut-être atteint le serveur; aucun résultat IA n'est confirmé."
+    ? "Mode local sans connexion API confirmée. Les données en cache ne sont pas présentées comme actuelles; aucun résultat IA n'est confirmé."
     : "Mode local déterministe — aucune requête ni donnée n'a été envoyée à un fournisseur.";
-  const summary = `${notice} ${sensors.length} capteur(s), ${sensors.filter((sensor) => sensor.health_status === "online").length} avec mesure récente, ${waterLevels.red} niveau(x) rouge(s) et ${waterLevels.orange} orange(s); ${alerts.length} alerte(s) connue(s) et ${weather.length} point(s) météo en mémoire. Ce résumé n'est ni une prévision ni une décision opérationnelle.`;
+  const observedWeather = currentWeather.filter((item) => item.observed_precip_mm_h != null);
+  const modeledWeather = currentWeather.filter((item) => item.modeled_precip_mm_h != null);
+  const summary = `${notice} ${currentSensors.length} capteur(s) de niveau à jour, ${waterLevels.red} niveau(x) rouge(s) et ${waterLevels.orange} orange(s); ${alerts.length} alerte(s) connue(s) (historique); ${observedWeather.length} point(s) avec pluie rapportée et ${modeledWeather.length} estimation(s) courante(s) Open-Meteo. Ces estimations ne sont pas des mesures terrain. Ce résumé n'est ni une prévision ni une décision opérationnelle.`;
   return {
     answer: mode === "report"
       ? `Résumé local\n${summary}\n\nLimites\nAucune interprétation IA ni prévision n'a été produite.`

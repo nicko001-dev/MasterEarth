@@ -15,8 +15,14 @@ import { AssistantPanel } from "../components/AssistantPanel";
 import { MapToolbar } from "../components/MapToolbar";
 import { Icon, IconName } from "../components/Icon";
 import { can, loadSession, logout } from "../services/auth";
-import { LEVEL_COLOR, LEVEL_LABEL } from "../services/levels";
+import {
+  LEVEL_COLOR,
+  LEVEL_LABEL,
+  SITUATION_COLOR,
+  SITUATION_LABEL,
+} from "../services/levels";
 import { FloodRun } from "../services/simulation";
+import { currentSituation } from "../services/situation";
 
 let globeModulePromise: Promise<typeof import("../globe/GlobeView")> | undefined;
 const loadGlobeView = () => {
@@ -54,9 +60,16 @@ const HEALTH_LABEL = {
   stale: "Mesure en retard",
   clock_skew: "Horodatage à vérifier",
 } as const;
+const WEATHER_SOURCE_LABEL: Record<string, string> = {
+  weather_model: "Modèle Open-Meteo (estimation, pas une mesure terrain)",
+  provider_report: "Conditions rapportées par OpenWeather",
+  iot_gauge: "Pluviomètre IoT",
+  bulletin: "Bulletin météo saisi",
+};
 
 export function App() {
-  const { sensors, alerts, weather, offline, loading, updatedAt, refresh } = useMonitoring();
+  const { sensors, alerts, weather, weatherStatus, weatherError, automaticFloods, automaticFloodError, offline, loading, updatedAt, refresh } = useMonitoring();
+  const situation = currentSituation(sensors, weather, offline || loading);
   const [tab, setTab] = useState<Tab>(readTab);
   const [session, setSession] = useState(loadSession);
   const [logoutError, setLogoutError] = useState<string | null>(null);
@@ -87,11 +100,6 @@ export function App() {
     return () => window.clearInterval(timer);
   }, [playing, floodRun]);
 
-  const worst = sensors.some((sensor) => sensor.alert_level === "red")
-    ? "red"
-    : sensors.some((sensor) => sensor.alert_level === "orange")
-      ? "orange"
-      : "green";
   const activeSensor = sensors.find((sensor) => sensor.code === selectedSensor) ?? sensors[0];
 
   const handleRunChange = useCallback((run: FloodRun | null) => {
@@ -140,9 +148,13 @@ export function App() {
         </nav>
 
         <div className="topbar-actions">
-          <span className="status-pill" style={{ borderColor: `${LEVEL_COLOR[worst]}66` }}>
-            <i style={{ background: LEVEL_COLOR[worst] }} />
-            <span>Situation : {LEVEL_LABEL[worst]}</span>
+          <span className="status-pill" style={{ borderColor: `${SITUATION_COLOR[situation.level]}66` }}>
+            <i style={{ background: SITUATION_COLOR[situation.level] }} />
+            <span>
+              {situation.level === "unknown"
+                ? "Situation : données insuffisantes"
+                : `Situation mesurée : ${SITUATION_LABEL[situation.level]}`}
+            </span>
           </span>
           <button type="button" className="icon-button" aria-label="Actualiser" title="Actualiser les données" onClick={() => void refresh()}>
             <Icon name="refresh" size={17} />
@@ -168,13 +180,15 @@ export function App() {
 
       {logoutError && <div className="banner banner-warning" role="alert">{logoutError}</div>}
       {offline && <div className="banner" role="status">Hors ligne — dernières données connues{updatedAt ? ` (${fmt(updatedAt)})` : ""}. Les mesures reprendront dès le retour du réseau.</div>}
+      {automaticFloodError && <div className="banner banner-warning" role="alert">Les impacts automatiques sont temporairement indisponibles : {automaticFloodError}</div>}
 
       <main className={`workspace tab-${tab}`}>
         <div className="map-stage">
           {view === "map" ? (
             <SensorMap
-              sensors={sensors}
-              weather={weather}
+              sensors={offline ? [] : sensors}
+              weather={offline ? [] : weather}
+              automaticFloods={offline ? [] : automaticFloods?.events ?? []}
               onSelect={setSelectedSensor}
               simulation={floodRun}
               frameIndex={simulationFrame}
@@ -186,7 +200,13 @@ export function App() {
             />
           ) : (
             <Suspense fallback={<div className="globe-loading"><span className="spinner" />Chargement du globe…</div>}>
-              <GlobeView sensors={sensors} weather={weather} simulation={floodRun} frameIndex={simulationFrame} />
+              <GlobeView
+                sensors={offline ? [] : sensors}
+                weather={offline ? [] : weather}
+                simulation={floodRun}
+                automaticFloods={offline ? [] : automaticFloods?.events ?? []}
+                frameIndex={simulationFrame}
+              />
             </Suspense>
           )}
 
@@ -243,10 +263,14 @@ export function App() {
               <SimulationInsights
                 run={floodRun}
                 frameIndex={simulationFrame}
-                worst={worst}
+                situation={situation}
                 sensors={sensors}
                 alerts={alerts}
                 weather={weather}
+                automaticFloods={offline ? null : automaticFloods}
+                automaticFloodError={automaticFloodError}
+                weatherError={weatherError}
+                weatherStatus={weatherStatus}
                 updatedAt={updatedAt}
                 offline={offline}
                 loading={loading}
@@ -258,7 +282,7 @@ export function App() {
             {tab === "capteurs" && (
               <section className="rail-panel" aria-labelledby="sensors-heading">
                 <div className="rail-panel-head">
-                  <div><h2 id="sensors-heading">Capteurs</h2><p>Niveaux d'eau et fraîcheur des mesures</p></div>
+                  <div><h2 id="sensors-heading">Capteurs</h2><p>Niveaux d'eau, pluviomètres et fraîcheur des mesures</p></div>
                   <span className="count-chip">{sensors.length}</span>
                 </div>
                 {!sensors.length && (
@@ -269,16 +293,16 @@ export function App() {
                 <ul className="sensor-list">
                   {sensors.map((sensor) => (
                     <li key={sensor.code} className={activeSensor?.code === sensor.code ? "is-active" : ""}>
-                      <i style={{ background: LEVEL_COLOR[sensor.alert_level] }} />
+                      <i style={{ background: sensor.health_status === "online" ? LEVEL_COLOR[sensor.alert_level] : "#7f91a6" }} />
                       <button type="button" className="sensor-select" aria-pressed={activeSensor?.code === sensor.code} onClick={() => setSelectedSensor(sensor.code)}>
                         <strong>{sensor.name}</strong>
-                        <small>{sensor.code} · {HEALTH_LABEL[sensor.health_status]} · {fmt(sensor.last_measured_at)}</small>
+                        <small>{sensor.code} · {sensor.kind === "rain_gauge" ? "Pluviomètre" : "Niveau d'eau"} · {HEALTH_LABEL[sensor.health_status]} · {fmt(sensor.last_measured_at)}</small>
                       </button>
-                      <span className="sensor-value">{sensor.water_level_cm == null ? "—" : `${sensor.water_level_cm.toFixed(0)} cm`}</span>
+                      <span className="sensor-value">{sensor.kind === "rain_gauge" ? sensor.rain_mm_h == null ? "—" : `${sensor.rain_mm_h.toFixed(1)} mm/h` : sensor.water_level_cm == null ? "—" : `${sensor.water_level_cm.toFixed(0)} cm`}</span>
                     </li>
                   ))}
                 </ul>
-                {activeSensor && <SensorHistory code={activeSensor.code} />}
+                {activeSensor && activeSensor.kind !== "rain_gauge" && <SensorHistory code={activeSensor.code} />}
               </section>
             )}
 
@@ -307,18 +331,55 @@ export function App() {
             {tab === "meteo" && (
               <section className="rail-panel" aria-labelledby="weather-heading">
                 <div className="rail-panel-head">
-                  <div><h2 id="weather-heading">Météo · risque pluie</h2><p>Prévisions et bulletins disponibles</p></div>
+                  <div><h2 id="weather-heading">Météo · observations et prévisions</h2><p>Mesures terrain, estimations météo courantes et prévisions distinguées</p></div>
                   <span className="count-chip">{weather.length}</span>
                 </div>
-                {!weather.length && <p className="empty-note">Aucune donnée météo. Activez la collecte (WEATHER_ENABLED) ou saisissez un bulletin.</p>}
+                {weatherError && <p className="err-msg" role="alert">{weatherError} Les valeurs précédentes ne sont pas effacées.</p>}
+                {weatherStatus && <ul className="weather-list source-status-list">
+                  {weatherStatus.providers.map((provider) => (
+                    <li key={provider.source}>
+                      <i style={{ background: !offline && provider.status === "current" ? "#35d39a" : !offline && provider.status === "stale" ? "#f5b942" : "#7f91a6" }} />
+                      <div><strong>{provider.source}</strong><p>{offline ? "Hors ligne · dernier état connu" : provider.status === "current" ? "Collecte récente" : provider.status === "stale" ? "Données anciennes" : provider.status === "disabled" ? "Désactivé / clé non configurée" : "Aucune donnée reçue"}</p><small>Dernière collecte : {fmt(provider.last_success_at)}</small></div>
+                    </li>
+                  ))}
+                </ul>}
+                {!weather.length && <p className="empty-note">{loading ? "Chargement des données météo…" : "Aucune observation météo disponible. Les bulletins et pluviomètres IoT restent utilisables même si un fournisseur est indisponible."}</p>}
                 <ul className="weather-list">
                   {weather.map((item) => (
                     <li key={`${item.source}-${item.name}`}>
-                      <i style={{ background: LEVEL_COLOR[item.level] }} />
+                      <i style={{ background: LEVEL_COLOR[item.observed_level ?? item.forecast_level ?? item.level] }} />
                       <div>
                         <strong>{item.name}</strong>
-                        <p>{item.intensity_3h_mm_h} mm/h dans 3 h · {item.accumulated_24h_mm} mm sur 24 h</p>
-                        <small>{item.source} · {fmt(item.updated_at)}</small>
+                        <p>
+                          {offline
+                            ? "Dernière valeur connue (cache hors ligne)"
+                            : item.observed_precip_mm_h != null
+                              ? `${item.observed_precip_mm_h.toFixed(1)} mm/h rapportés`
+                              : item.modeled_precip_mm_h != null
+                                ? `${item.modeled_precip_mm_h.toFixed(1)} mm/h estimés maintenant par Open-Meteo`
+                                : "Aucune pluie actuelle rapportée"}
+                          {" · "}prévision max. à 3 h : {item.forecast_intensity_3h_mm_h ?? item.intensity_3h_mm_h} mm/h
+                          {" · "}{item.source_kind === "weather_model" ? "cumul modèle 24 h" : "cumul mesuré 24 h"} : {
+                            item.source_kind === "weather_model"
+                              ? item.modeled_24h_mm ?? 0
+                              : item.observed_24h_mm ?? 0
+                          } mm
+                        </p>
+                        <small>
+                          Niveau actuel : {offline
+                            ? "non disponible hors ligne"
+                            : item.observed_level
+                              ? LEVEL_LABEL[item.observed_level]
+                              : item.modeled_precip_mm_h != null
+                                ? `estimation ${LEVEL_LABEL[item.level]}`
+                                : "non déterminé"}
+                          {" · "}prévision : {LEVEL_LABEL[item.forecast_level ?? item.level]}
+                        </small>
+                        <small>
+                          {WEATHER_SOURCE_LABEL[item.source_kind ?? ""] ?? item.source} · {item.source}
+                          {" · "}donnée : {fmt(item.observed_at ?? item.modeled_at ?? null)}
+                          {" · "}collecte : {fmt(item.updated_at)}
+                        </small>
                       </div>
                     </li>
                   ))}

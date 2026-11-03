@@ -730,7 +730,7 @@ input[type="range"]::-moz-range-thumb {
   z-index: 55;
   top: 76px;
   right: 16px;
-  bottom: 92px;
+  bottom: 140px;
   width: 372px;
   display: flex;
   flex-direction: column;
@@ -786,7 +786,7 @@ input[type="range"]::-moz-range-thumb {
 }
 .level-chip i { width: 6px; height: 6px; border-radius: 50%; }
 
-.overview-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
+.overview-metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 10px; }
 .overview-metrics > div {
   display: grid;
   gap: 2px;
@@ -1116,6 +1116,34 @@ input[type="range"]::-moz-range-thumb {
 .ai-provider .ghost { background: transparent; color: var(--text); border: 1px solid var(--line-strong); width: auto; }
 
 /* --------------------------------------------------------------------------
+   Intelligence Engine – barre de conversation vocale
+   -------------------------------------------------------------------------- */
+
+.ai-voice-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(55, 198, 244, 0.06);
+  margin: 10px 0;
+  flex-wrap: wrap;
+}
+.ai-voice-bar .icon-button.on {
+  background: linear-gradient(135deg, #4bd4fa, #3279ff);
+  color: #02121d;
+  border-color: transparent;
+}
+.ai-voice-status {
+  font-size: 0.68rem;
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+/* --------------------------------------------------------------------------
    Gestion
    -------------------------------------------------------------------------- */
 
@@ -1227,25 +1255,59 @@ input[type="range"]::-moz-range-thumb {
 
 .globe-panel {
   position: absolute;
-  z-index: 20;
-  top: 76px;
+  z-index: 100;
+  bottom: 20px;
   right: 16px;
+  top: auto;
   width: 268px;
   max-width: calc(100% - 32px);
-  max-height: calc(100% - 170px);
+  max-height: calc(100% - 140px);
   overflow: auto;
   display: grid;
   gap: 8px;
   padding: 12px;
   border-radius: 14px;
   border: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(10, 27, 44, 0.9), rgba(5, 16, 28, 0.9));
-  box-shadow: var(--shadow-md);
-  backdrop-filter: blur(18px) saturate(135%);
+  background: linear-gradient(180deg, rgba(10, 27, 44, 0.95), rgba(5, 16, 28, 0.95));
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(20px) saturate(140%);
   font-size: 0.7rem;
 }
-.globe-panel-toggle { display: flex; justify-content: space-between; gap: 8px; align-items: center; color: #fff; background: transparent; border: 0; font: inherit; font-weight: 600; cursor: pointer; }
-.globe-panel-content { display: grid; gap: 8px; }
+
+/* Agrandissement du panneau globe lorsqu'il est ouvert */
+.globe-panel.open {
+  max-height: calc(100% - 200px);
+}
+
+/* Le toggle reste toujours accessible, même quand le panneau est replié */
+.globe-panel-toggle {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  color: #fff;
+  background: rgba(55, 198, 244, 0.15);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 10px;
+  width: 100%;
+}
+.globe-panel-toggle:hover {
+  background: rgba(55, 198, 244, 0.25);
+  border-color: var(--accent);
+}
+.globe-panel-content {
+  display: grid;
+  gap: 8px;
+  animation: panelSlide 0.2s ease-out;
+}
+@keyframes panelSlide {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
 .globe-panel small { color: var(--muted); }
 .globe-panel .warn { color: #e9c874; }
 .globe-panel label { display: grid; gap: 4px; }

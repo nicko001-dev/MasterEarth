@@ -10,6 +10,7 @@ from sqlalchemy import text
 from app.config import settings
 from app.infrastructure.db.session import get_engine
 from app.main import app
+from app.services import weather as weather_service
 from tests.conftest_auth import cleanup, login_headers
 
 try:
@@ -60,3 +61,49 @@ def test_full_alert_flow(client):
     assert client.get("/api/v1/sensors/nope/readings").status_code == 404
     with get_engine().begin() as conn:  # nettoyage : le test ne laisse aucune donnée
         conn.execute(text("delete from sensors where code = :c"), {"c": code})
+
+
+def test_demo_sensor_is_excluded_from_live_lists_and_weather_points(client, monkeypatch):
+    code = f"DEMO-TEST-{uuid.uuid4().hex[:8]}"
+    operator = login_headers(client, "operator")
+    body = {
+        "code": code,
+        "name": "Démo · Caniveau test",
+        "lon": -3.98,
+        "lat": 5.36,
+        "mount_height_cm": 150,
+    }
+    created = client.post("/api/v1/sensors", json=body, headers=operator)
+    assert created.status_code == 201, created.text
+
+    measured_at = datetime.now(timezone.utc)
+    for offset in range(4):
+        response = client.post(
+            f"/api/v1/sensors/{code}/readings",
+            headers=H,
+            json={
+                "samples_cm": [60],
+                "measured_at": (
+                    measured_at - timedelta(minutes=3 - offset)
+                ).isoformat(),
+            },
+        )
+        assert response.status_code == 201, response.text
+
+    assert all(
+        sensor["code"] != code
+        for sensor in client.get("/api/v1/sensors").json()
+    )
+    assert all(
+        alert["sensor_code"] != code
+        for alert in client.get("/api/v1/alerts").json()
+    )
+
+    monkeypatch.setattr(weather_service, "configured_points", lambda: [])
+    from app.infrastructure.db.session import session_scope
+
+    with session_scope() as db:
+        assert all(name != body["name"] for name, *_ in weather_service._all_points(db))
+
+    with get_engine().begin() as conn:
+        conn.execute(text("delete from sensors where code = :code"), {"code": code})

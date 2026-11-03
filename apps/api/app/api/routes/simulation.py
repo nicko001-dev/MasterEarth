@@ -44,6 +44,12 @@ def run_flood(body: FloodIn, user: User = Depends(auth_deps.require_role("viewer
     return simulation.run_flood(db, user.id, body.model_dump(exclude_none=True))
 
 
+@router.get("/automatic")
+def automatic_floods(db: Session = Depends(get_db_session)) -> dict:
+    """Impacts indicatifs publics calculés à partir des mesures récentes, sans écrire d'exécution manuelle."""
+    return simulation.automatic_floods(db)
+
+
 @router.get("")
 def runs(limit: int = Query(20, ge=1, le=100), _: User = Depends(auth_deps.require_role("viewer")), db: Session = Depends(get_db_session)) -> list[dict]:
     return simulation.list_runs(db, limit)

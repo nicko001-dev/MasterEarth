@@ -103,7 +103,10 @@ void main() {
   float shaftLen0 = max(segLen0, MIN_SHAFT);
   float along0 = clamp(dot(p - a0, axis0), 0.0, shaftLen0);
   float nearShaft = step(length(p - (a0 + axis0 * along0)), u_radius * 1.4 + 0.02);
-  if (intensity <= 0.002 || (nearCloud < 0.5 && nearShaft < 0.5)) {
+  // Zone violette au sol : disque autour du point de pluie
+  float groundDist = length(p - b0) / max(u_radius, 0.0001);
+  float nearGround = step(groundDist, 1.6);
+  if (intensity <= 0.002 || (nearCloud < 0.5 && nearShaft < 0.5 && nearGround < 0.5)) {
     out_FragColor = c;
     return;
   }
@@ -140,15 +143,28 @@ void main() {
   col = mix(col, vec3(0.40, 0.55, 0.72), 0.26 * veil);
   col += vec3(0.76, 0.87, 1.0) * r * (0.55 + 0.95 * k);
 
-  // Zones inondées : bleu dont l'intensité croît avec la profondeur.
-  float floodAlpha = smoothstep(0.0, 0.5, u_flood_depth);
-  vec3 floodCol = mix(vec3(0.0, 0.28, 0.68),   // bleu profond
-                      vec3(0.0, 0.52, 1.0),    // bleu moyen
-                      vec3(0.0, 0.80, 1.0));   // bleu clair
-  floodCol = mix(floodCol, vec3(0.0, 0.0, 0.0), 1.0 - floodAlpha);
-  col = mix(col, floodCol, floodAlpha * clamp(k, 0.0, 1.0));
+  // Zone violette au sol : délimite précisément où il pleut.
+  // Le disque est centré sur le point au sol (u_ground) avec le rayon de la zone.
+  float rainGroundEdge = 1.0 - smoothstep(0.85, 1.15, groundDist);
+  float rainGroundBorder = smoothstep(0.80, 0.90, groundDist) * (1.0 - smoothstep(1.10, 1.20, groundDist));
+  // Bruit de surface pour casser la régularité du disque
+  float groundNoise = fbm(v_textureCoordinates * 18.0 + vec2(u_time * 0.02, 0.0));
+  float violetAlpha = rainGroundEdge * intensity * 0.28 * (0.7 + 0.3 * groundNoise);
+  vec3 violetCol = vec3(0.45, 0.0, 0.65);
+  col = mix(col, violetCol, violetAlpha);
+  // Bordure violette plus marquée sur le contour de la zone
+  col = mix(col, vec3(0.55, 0.1, 0.80), rainGroundBorder * intensity * 0.40);
 
-  col = vec3(clamp(r * 2.0, 0.0, 1.0), clamp(k, 0.0, 1.0) * 0.4, 0.0);
+  // Zones inondées : bleu dont l'intensité croît avec la profondeur.
+  // Le bleu est appliqué via l'overlay de la grille MNT (GroundPrimitive),
+  // mais le shader ajoute un halo subtil autour de la zone d'impact.
+  float floodAlpha = smoothstep(0.0, 0.5, u_flood_depth);
+  vec3 floodShallow = vec3(0.40, 0.65, 1.0);  // bleu clair
+  vec3 floodDeep    = vec3(0.0, 0.12, 0.55);   // bleu profond
+  // On utilise u_max_depth pour moduler la couleur : plus c'est profond, plus c'est bleu pur.
+  vec3 floodCol = mix(floodShallow, floodDeep, clamp(u_max_depth / 2.0, 0.0, 1.0));
+  col = mix(col, floodCol, floodAlpha * 0.45 * rainGroundEdge);
+
   float mist = exp(-pow((t - 0.95) / 0.10, 2.0)) * edge;
   col += vec3(0.42, 0.60, 0.80) * mist * 0.16 * k;
 

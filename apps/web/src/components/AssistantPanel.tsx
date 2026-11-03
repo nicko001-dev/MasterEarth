@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState, useRef, useCallback } from "react";
 import {
   analyzeImage,
   askAssistant,
@@ -8,6 +8,7 @@ import {
   localAssistantSummary,
 } from "../services/ai";
 import { AlertItem, SensorState, WeatherItem } from "../services/api";
+import { Icon } from "./Icon";
 
 type Props = {
   token?: string;
@@ -32,6 +33,13 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
   const [statusError, setStatusError] = useState(false);
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
 
+  // Audio / conversation state — NE SE LANCE QUE AU CLIC UTILISATEUR
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const synthRef = useRef<SpeechSynthesis | null>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
   useEffect(() => {
     const update = () => setIsOnline(navigator.onLine);
     addEventListener("online", update);
@@ -40,6 +48,95 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
       removeEventListener("online", update);
       removeEventListener("offline", update);
     };
+  }, []);
+
+  // Initialiser Web Speech API (reconnaissance + synthèse) — sans auto-démarrage
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const Synthesis = window.speechSynthesis;
+    if (SpeechRecognition) {
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = "fr-FR";
+
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setMessage(transcript);
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onerror = (event: any) => {
+        console.error("Speech recognition error", event.error);
+        setIsListening(false);
+        if (event.error !== "no-speech" && event.error !== "aborted") {
+          setError(`Erreur reconnaissance vocale : ${event.error}`);
+        }
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false);
+      };
+    }
+    synthRef.current = Synthesis;
+  }, []);
+
+  const startListening = useCallback(() => {
+    if (!recognitionRef.current) {
+      setError("La reconnaissance vocale n'est pas supportée par votre navigateur.");
+      return;
+    }
+    if (isListening || isSpeaking || busy) return;
+    setIsListening(true);
+    setError(null);
+    setMessage("");
+    try {
+      recognitionRef.current.start();
+    } catch {
+      setIsListening(false);
+      setError("Impossible de démarrer l'écoute vocale.");
+    }
+  }, [isListening, isSpeaking, busy]);
+
+  const stopListening = useCallback(() => {
+    if (!recognitionRef.current) return;
+    try { recognitionRef.current.stop(); } catch {}
+    setIsListening(false);
+  }, []);
+
+  const speakText = useCallback((text: string, onEnd: () => void) => {
+    if (!synthRef.current) { onEnd(); return; }
+    // Annuler toute parole en cours
+    synthRef.current.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "fr-FR";
+    utterance.rate = 0.95;
+    utterance.pitch = 1;
+    utteranceRef.current = utterance;
+
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      utteranceRef.current = null;
+      onEnd();
+    };
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      utteranceRef.current = null;
+      onEnd();
+    };
+    try {
+      synthRef.current.speak(utterance);
+    } catch {
+      setIsSpeaking(false);
+      onEnd();
+    }
+  }, []);
+
+  const stopSpeaking = useCallback(() => {
+    if (synthRef.current) synthRef.current.cancel();
+    setIsSpeaking(false);
+    utteranceRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -64,24 +161,34 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
     return () => { active = false; };
   }, [token, isOnline]);
 
-  const send = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!message.trim() || (isOnline && (!consent || !statusReady)) || busy) return;
+  const send = async (event?: FormEvent) => {
+    if (event) event.preventDefault();
+    const msg = message.trim();
+    if (!msg || (isOnline && (!consent || !statusReady)) || busy) return;
+    stopListening();
     setBusy(true);
     setError(null);
     try {
       const result = !isOnline
-        ? localAssistantSummary(sensors, alerts, weather, mode)
-        : await askAssistant(token, message.trim(), mode);
-      setEntries((current) => [...current, { question: message.trim(), result }]);
+        ? localAssistantSummary(sensors, alerts, weather, mode, true)
+        : await askAssistant(token, msg, mode);
+      setEntries((current) => [...current, { question: msg, result }]);
       setMessage("");
+
+      // Lire la réponse à voix haute uniquement si l'IA a répondu (pas de mode local silencieux)
+      if (isOnline && result.answer) {
+        speakText(result.answer, () => {
+          setBusy(false);
+        });
+        return;
+      }
     } catch (reason) {
       if (reason instanceof TypeError) {
         setEntries((current) => [...current, {
-          question: message.trim(),
+          question: msg,
           result: localAssistantSummary(sensors, alerts, weather, mode, true),
         }]);
-        setError("API injoignable. Une synthèse locale est affichée; l'envoi initial a peut-être atteint le serveur.");
+        setError("API injoignable. Une synthèse locale est affichée.");
       } else {
         setError((reason as Error).message);
       }
@@ -93,9 +200,10 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
 
   const showLocalSummary = () => {
     setError(null);
+    stopSpeaking();
     setEntries((current) => [...current, {
       question: "Résumé local des données en mémoire",
-      result: localAssistantSummary(sensors, alerts, weather, mode),
+      result: localAssistantSummary(sensors, alerts, weather, mode, !isOnline),
     }]);
   };
 
@@ -105,6 +213,7 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
       setError("Choisissez une image JPEG, PNG ou WebP de 4 Mio maximum.");
       return;
     }
+    stopSpeaking();
     setBusy(true);
     setError(null);
     try {
@@ -124,6 +233,13 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
       }]);
       setImage(null);
       setImageConsent(false);
+
+      if (result.answer && isOnline) {
+        speakText(result.answer, () => {
+          setBusy(false);
+        });
+        return;
+      }
     } catch (reason) {
       setError(reason instanceof TypeError
         ? "Connexion interrompue pendant l'analyse; l'image a peut-être déjà atteint le serveur ou le fournisseur. L'envoi n'est pas confirmé."
@@ -155,17 +271,49 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
           {provider.name} · modèles {provider.models.join(", ")}. {provider.billing_note}
         </p>)}
       </div>}
+
+      {/* Bouton de conversation vocale — UNIQUEMENT AU CLIC, jamais automatique */}
+      <div className="ai-voice-bar">
+        <button
+          type="button"
+          className={`icon-button ${isListening ? "on" : ""}`}
+          onClick={startListening}
+          disabled={busy || !isOnline || !statusReady || isListening}
+          title={isListening ? "Arrêter l'écoute" : "Parler à l'IA (cliquer pour dicter)"}
+        >
+          <Icon name={isListening ? "mic-on" : "mic"} size={17} />
+          <span style={{ marginLeft: "6px", fontSize: "0.72rem" }}>
+            {isListening ? "Écoute en cours…" : "Parler à l'IA"}
+          </span>
+        </button>
+        {isListening && <span className="ai-voice-status">Écoute… (dites votre question)</span>}
+        {isSpeaking && <span className="ai-voice-status">L'IA vous répond…</span>}
+      </div>
+
       <form className="ai-form" onSubmit={(event) => void send(event)}>
         <label htmlFor="ai-question">Question (ne saisissez aucune donnée personnelle)</label>
-        <textarea
-          id="ai-question"
-          rows={3}
-          maxLength={2000}
-          value={message}
-          onChange={(event) => setMessage(event.target.value)}
-          placeholder="Ex. Résume les tendances observées et leurs limites."
-          disabled={busy}
-        />
+        <div style={{ position: "relative", display: "flex", gap: "8px" }}>
+          <textarea
+            id="ai-question"
+            rows={3}
+            maxLength={2000}
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            placeholder={isListening ? "Écoute en cours…" : "Ex. Résume les tendances observées et leurs limites."}
+            disabled={busy || isListening}
+            style={{ flex: 1 }}
+          />
+          <button
+            type="button"
+            className="icon-button"
+            onClick={startListening}
+            disabled={busy || !isOnline || !statusReady || isListening}
+            title="Parler à l'IA"
+            style={{ height: "fit-content", alignSelf: "flex-start", marginTop: "4px" }}
+          >
+            <Icon name={isListening ? "mic-on" : "mic"} size={18} />
+          </button>
+        </div>
         <label htmlFor="ai-mode">Format</label>
         <select id="ai-mode" value={mode} onChange={(event) => setMode(event.target.value as "answer" | "report")}>
           <option value="answer">Réponse informative</option>
@@ -173,12 +321,12 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
         </select>
         <label className="ai-consent">
           <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
-          En ligne, j'autorise l'envoi de ma question, d'agrégats capteurs/météo et d'extraits documentaires à l'un des fournisseurs indiqués. Pas de coordonnées, observations libres, identifiants ou médias.
+          En ligne, j'autorise l'envoi de ma question, d'un agrégat capteurs/météo et d'extraits documentaires à l'un des fournisseurs indiqués. Pas de coordonnées, observations libres, identifiants ou médias.
         </label>
-        <button type="submit" disabled={!message.trim() || (isOnline && (!consent || !statusReady)) || busy}>
+        <button type="submit" disabled={!message.trim() || (isOnline && (!consent || !statusReady)) || busy || isListening}>
           {busy ? "Traitement…" : isOnline ? "Envoyer la question" : "Répondre localement"}
         </button>
-        <button type="button" disabled={busy} onClick={showLocalSummary}>Résumé des données en mémoire — sans envoi</button>
+        <button type="button" disabled={busy || isListening} onClick={showLocalSummary}>Résumé des données en mémoire — sans envoi</button>
         <div className="ai-image">
           <label htmlFor="ai-image">Analyse d'image (facultative, non conservée)</label>
           <input id="ai-image" type="file" accept="image/jpeg,image/png,image/webp" disabled={!isOnline || busy} onChange={(event) => setImage(event.target.files?.[0] ?? null)} />
@@ -187,7 +335,7 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
               <input type="checkbox" checked={imageConsent} onChange={(event) => setImageConsent(event.target.checked)} />
               J'autorise explicitement l'envoi de cette image et de la question associée au fournisseur IA pour analyse.
             </label>
-            <button type="button" disabled={!isOnline || !statusReady || !consent || !imageConsent || busy} onClick={() => void sendImage()}>
+            <button type="button" disabled={!isOnline || !statusReady || !consent || !imageConsent || busy || isListening} onClick={() => void sendImage()}>
               Analyser l'image
             </button>
           </>}
@@ -204,6 +352,27 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
             </small>
             {entry.result.sources.length > 0 && <p className="ai-sources">Sources : {entry.result.sources.join("; ")}</p>}
             <small className="ai-warning">Information non décisionnelle; validation humaine requise. L'IA ne déclenche pas d'alerte.</small>
+            <div style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
+              <button
+                className="ghost"
+                style={{ fontSize: "0.6rem", padding: "2px 6px", flex: 1 }}
+                onClick={() => {
+                  stopSpeaking();
+                  speakText(entry.result.answer, () => {});
+                }}
+                disabled={isSpeaking || !isOnline || busy}
+              >
+                {isSpeaking ? "Arrêter" : "Lire la réponse"}
+              </button>
+              <button
+                className="ghost"
+                style={{ fontSize: "0.6rem", padding: "2px 6px" }}
+                onClick={stopSpeaking}
+                disabled={!isSpeaking}
+              >
+                Arrêter la voix
+              </button>
+            </div>
           </article>
         ))}
       </div>

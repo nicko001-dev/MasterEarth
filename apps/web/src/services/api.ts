@@ -40,11 +40,13 @@ export type SensorHealthStatus = "never_reported" | "online" | "stale" | "clock_
 export interface SensorState {
   code: string;
   name: string;
+  kind?: "water_level" | "rain_gauge";
   lon: number;
   lat: number;
   status: string;
   alert_level: AlertLevel;
   water_level_cm: number | null;
+  rain_mm_h?: number | null;
   last_measured_at: string | null;
   health_status: SensorHealthStatus;
   minutes_since_last_reading: number | null;
@@ -108,8 +110,34 @@ export interface WeatherItem {
   lon: number;
   updated_at: string;
   intensity_3h_mm_h: number;
+  forecast_intensity_3h_mm_h?: number;
+  observed_precip_mm_h?: number | null;
+  observed_at?: string | null;
+  observed_24h_mm?: number;
+  observed_level?: AlertLevel | null;
+  modeled_precip_mm_h?: number | null;
+  modeled_at?: string | null;
+  modeled_24h_mm?: number;
+  forecast_level?: AlertLevel;
+  source_kind?: "weather_model" | "provider_report" | "iot_gauge" | "bulletin";
   accumulated_24h_mm: number;
   level: AlertLevel;
 }
 
+export type WeatherSourceStatus = "disabled" | "no_data" | "current" | "stale";
+
+export interface WeatherProviderStatus {
+  source: string;
+  enabled: boolean;
+  status: WeatherSourceStatus;
+  last_success_at: string | null;
+}
+
+export interface WeatherStatus {
+  refresh_interval_minutes: number;
+  providers: WeatherProviderStatus[];
+  supplemental_sources: string[];
+}
+
 export const fetchWeather = () => getJson<WeatherItem[]>("/api/v1/weather");
+export const fetchWeatherStatus = () => getJson<WeatherStatus>("/api/v1/weather/status");

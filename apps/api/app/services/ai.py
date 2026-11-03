@@ -303,13 +303,19 @@ def relevant_documents(query: str, limit: int = 4) -> list[dict]:
 
 def build_flood_context(db: Session) -> tuple[dict, list[str]]:
     sensors = monitoring.list_sensors(db)
-    current = [sensor for sensor in sensors if sensor["water_level_cm"] is not None]
+    current = [
+        sensor for sensor in sensors
+        if sensor["kind"] == "water_level"
+        and sensor["health_status"] == "online"
+        and sensor["water_level_cm"] is not None
+    ]
     sensor_levels = {level: 0 for level in ("green", "orange", "red")}
     health = {
         status: 0 for status in ("online", "stale", "never_reported", "clock_skew")
     }
-    for sensor in sensors:
+    for sensor in current:
         sensor_levels[sensor["alert_level"]] += 1
+    for sensor in sensors:
         health[sensor["health_status"]] += 1
     measured_values = [sensor["water_level_cm"] for sensor in current]
 
@@ -319,9 +325,16 @@ def build_flood_context(db: Session) -> tuple[dict, list[str]]:
         alert_counts[alert["level"]] += 1
 
     weather_points = weather.summary(db)
-    weather_levels = {level: 0 for level in ("green", "orange", "red")}
-    for point in weather_points:
-        weather_levels[point["level"]] += 1
+    observed_points = [point for point in weather_points if point["observed_level"]]
+    modeled_points = [
+        point for point in weather_points if point["modeled_precip_mm_h"] is not None
+    ]
+    forecast_points = [
+        point for point in weather_points if point["forecast_intensity_3h_mm_h"] > 0
+    ]
+    observed_levels = {level: 0 for level in ("green", "orange", "red")}
+    for point in observed_points:
+        observed_levels[point["observed_level"]] += 1
 
     context = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -345,12 +358,25 @@ def build_flood_context(db: Session) -> tuple[dict, list[str]]:
         },
         "weather_summary": {
             "available_points": len(weather_points),
-            "risk_level_counts": weather_levels,
-            "maximum_rain_3h_mm_h": max(
-                (p["intensity_3h_mm_h"] for p in weather_points), default=None
+            "observed_points": len(observed_points),
+            "observed_risk_level_counts": observed_levels,
+            "maximum_observed_rain_1h_mm": max(
+                (p["observed_precip_mm_h"] for p in observed_points), default=None
             ),
-            "maximum_rain_24h_mm": max(
-                (p["accumulated_24h_mm"] for p in weather_points), default=None
+            "maximum_observed_rain_24h_mm": max(
+                (p["observed_24h_mm"] for p in observed_points), default=None
+            ),
+            "modeled_current_points": len(modeled_points),
+            "maximum_modeled_current_rain_1h_mm": max(
+                (p["modeled_precip_mm_h"] for p in modeled_points), default=None
+            ),
+            "maximum_modeled_rain_24h_mm": max(
+                (p["modeled_24h_mm"] for p in weather_points), default=None
+            ),
+            "forecast_points": len(forecast_points),
+            "maximum_forecast_rain_3h_mm_h": max(
+                (p["forecast_intensity_3h_mm_h"] for p in forecast_points),
+                default=None,
             ),
         },
         "limitations": [
@@ -360,6 +386,8 @@ def build_flood_context(db: Session) -> tuple[dict, list[str]]:
             "présentes dans IntelliFlood.",
             "Les seuils météo et d'alerte sont provisoires; leur validation "
             "opérationnelle reste nécessaire.",
+            "Les estimations et prévisions Open-Meteo ne sont pas des mesures "
+            "terrain et ne comptent pas dans les niveaux d'alerte observés.",
         ],
     }
     return context, [
@@ -420,6 +448,8 @@ def _messages(
         "ne déclenche ni ne recommande de décision opérationnelle. "
         "Distingue mesure, observation, calcul, simulation, prévision et "
         "résultat IA. "
+        "Les valeurs Open-Meteo sont des estimations de modèle, jamais des "
+        "mesures terrain; ne les compte pas dans les niveaux observés. "
         "Indique clairement les données absentes ou les limites, et n'invente "
         "aucune valeur."
     )

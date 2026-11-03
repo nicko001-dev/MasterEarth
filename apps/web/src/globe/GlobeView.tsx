@@ -7,8 +7,9 @@ import "cesium/Build/Cesium/Widgets/widgets.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LEVEL_COLOR } from "../dashboard/SensorMap";
 import { SensorState, WeatherItem } from "../services/api";
-import { FloodRun } from "../services/simulation";
+import { AutomaticFloodEvent, FloodRun } from "../services/simulation";
 import { buildFloodPrimitive } from "./flood";
+import { buildRainPrimitive } from "./flood";
 import { STORM_FRAGMENT, altitudeFade, rainVisual } from "./rain";
 
 (window as unknown as { CESIUM_BASE_URL: string }).CESIUM_BASE_URL = "/cesium/";
@@ -17,6 +18,7 @@ const CI = { lon: -5.55, lat: 7.54, height: 1_300_000 };
 const CLOUD_BASE_HEIGHT = 760;
 type Basemap = "esri" | "osm" | "nasa";
 type Pick = { kind: "sensor"; item: SensorState } | { kind: "weather"; item: WeatherItem };
+type CurrentRain = { intensity: number; label: string };
 type RainZone = { lon: number; lat: number; radiusM: number; intensity: number; label: string };
 const PLACE_LABELS = [
   { name: "Abidjan", lon: -4.01, lat: 5.36, neighborhood: false },
@@ -39,6 +41,26 @@ const PLACE_LABELS = [
   { name: "Brobo", lon: -5.12, lat: 6.45, neighborhood: true },
   { name: "Oumé", lon: -7.22, lat: 6.98, neighborhood: true },
   { name: "Dimbokro", lon: -5.68, lat: 6.45, neighborhood: true },
+  // Enrichissement zones Abidjan & environs
+  { name: "Koumassi", lon: -3.96, lat: 5.30, neighborhood: true },
+  { name: "Attécoubé", lon: -4.04, lat: 5.37, neighborhood: true },
+  { name: "Songon", lon: -4.25, lat: 5.32, neighborhood: true },
+  { name: "Anyama", lon: -4.62, lat: 5.43, neighborhood: true },
+  { name: "Grand-Bassam", lon: -3.72, lat: 5.21, neighborhood: false },
+  { name: "Jacqueville", lon: -4.38, lat: 5.23, neighborhood: false },
+  { name: "Agboville", lon: -4.21, lat: 5.65, neighborhood: false },
+  { name: "Divo", lon: -6.35, lat: 5.34, neighborhood: false },
+  { name: "Gagnoa", lon: -6.38, lat: 5.84, neighborhood: false },
+  { name: "Soubré", lon: -6.75, lat: 5.08, neighborhood: false },
+  { name: "Boundiali", lon: -5.45, lat: 10.12, neighborhood: false },
+  { name: "Odienné", lon: -7.56, lat: 9.48, neighborhood: false },
+  { name: "Ferkessédougou", lon: -5.12, lat: 10.15, neighborhood: false },
+  { name: "Bondoukou", lon: -2.82, lat: 8.04, neighborhood: false },
+  { name: "Abengourou", lon: -3.01, lat: 6.73, neighborhood: false },
+  { name: "Agnibilékrou", lon: -3.12, lat: 7.35, neighborhood: false },
+  { name: "Toumodi", lon: -5.21, lat: 6.55, neighborhood: false },
+  { name: "Daoukro", lon: -4.35, lat: 7.12, neighborhood: false },
+  { name: "Katiola", lon: -5.15, lat: 8.18, neighborhood: false },
 ];
 
 function makeBasemap(kind: Basemap): Cesium.ImageryProvider | Promise<Cesium.ImageryProvider> {
@@ -85,20 +107,35 @@ function cloudScreenSize(viewer: Cesium.Viewer, center: Cesium.Cartesian3 | null
   return new Cesium.Cartesian2(width, Math.min(0.26, Math.max(0.08, width * 1.2)));
 }
 
+function currentRain(item: WeatherItem | null | undefined): CurrentRain {
+  if (!item) return { intensity: 0, label: "Pluie actuelle indisponible" };
+  if (item.observed_precip_mm_h != null) {
+    return { intensity: item.observed_precip_mm_h, label: "Pluie rapportée" };
+  }
+  if (item.modeled_precip_mm_h != null) {
+    return { intensity: item.modeled_precip_mm_h, label: "Estimation actuelle Open-Meteo" };
+  }
+  return { intensity: 0, label: "Pluie actuelle indisponible" };
+}
+
 export default function GlobeView({
   sensors,
   weather,
   simulation,
+  automaticFloods = [],
   frameIndex = 0,
 }: {
   sensors: SensorState[];
   weather: WeatherItem[];
   simulation?: FloodRun | null;
+  automaticFloods?: AutomaticFloodEvent[];
   frameIndex?: number;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const viewer = useRef<Cesium.Viewer | null>(null);
   const floodPrimitive = useRef<Cesium.GroundPrimitive | null>(null);
+  const automaticFloodPrimitives = useRef<Cesium.GroundPrimitive[]>([]);
+  const rainPrimitives = useRef<Cesium.GroundPrimitive[]>([]);
   const cameraSimulationId = useRef<number | null>(null);
   const centered = useRef(false);
   const rainRef = useRef(0);
@@ -115,10 +152,32 @@ export default function GlobeView({
   const [error, setError] = useState("");
 
   const real = useMemo(() => {
-    if (!picked) return { rain: 0, flood: 0, label: "Sélectionnez un capteur ou un point météo sur le globe." };
-    if (picked.kind === "weather") return { rain: picked.item.intensity_3h_mm_h, flood: 0, label: `${picked.item.name} — ${picked.item.source}` };
+    if (!picked) return {
+      rain: 0,
+      rainLabel: "Sélectionnez un point pour afficher la pluie actuelle",
+      forecast: 0,
+      flood: 0,
+      label: "Sélectionnez un capteur ou un point météo sur le globe.",
+    };
+    if (picked.kind === "weather") {
+      const rain = currentRain(picked.item);
+      return {
+        rain: rain.intensity,
+        rainLabel: rain.label,
+        forecast: picked.item.forecast_intensity_3h_mm_h ?? picked.item.intensity_3h_mm_h,
+        flood: 0,
+        label: `${picked.item.name} — ${picked.item.source}`,
+      };
+    }
     const near = weather.reduce<WeatherItem | null>((b, w) => (!b || Math.hypot(w.lat - picked.item.lat, w.lon - picked.item.lon) < Math.hypot(b.lat - picked.item.lat, b.lon - picked.item.lon) ? w : b), null);
-    return { rain: near?.intensity_3h_mm_h ?? 0, flood: (picked.item.water_level_cm ?? 0) / 100, label: `${picked.item.name}${near ? ` — pluie : ${near.name}` : ""}` };
+    const rain = currentRain(near);
+    return {
+      rain: rain.intensity,
+      rainLabel: rain.label,
+      forecast: near?.forecast_intensity_3h_mm_h ?? near?.intensity_3h_mm_h ?? 0,
+      flood: (picked.item.water_level_cm ?? 0) / 100,
+      label: `${picked.item.name}${near ? ` — météo : ${near.name}` : ""}`,
+    };
   }, [picked, weather]);
   // Zones pluvieuses : la simulation est prioritaire, sinon les points météo
   // (ou le point sélectionné) alimentent les nuages et le rideau de pluie.
@@ -136,15 +195,24 @@ export default function GlobeView({
       }];
     }
     const rainy = weather
-      .filter((item) => item.intensity_3h_mm_h > 0)
-      .sort((a, b) => b.intensity_3h_mm_h - a.intensity_3h_mm_h)
+      .filter((item) => (item.observed_precip_mm_h ?? item.modeled_precip_mm_h ?? 0) > 0)
+      .sort((a, b) =>
+        (b.observed_precip_mm_h ?? b.modeled_precip_mm_h ?? 0)
+        - (a.observed_precip_mm_h ?? a.modeled_precip_mm_h ?? 0))
       .slice(0, 4)
-      .map((item) => ({ lon: item.lon, lat: item.lat, radiusM: 2600, intensity: item.intensity_3h_mm_h, label: item.name }));
+      .map((item) => ({
+        lon: item.lon,
+        lat: item.lat,
+        radiusM: 2600,
+        intensity: item.observed_precip_mm_h ?? item.modeled_precip_mm_h ?? 0,
+        label: item.name,
+      }));
     if (rainy.length) return rainy;
     if (!picked) return [];
     if (picked.kind === "weather") {
-      return picked.item.intensity_3h_mm_h > 0
-        ? [{ lon: picked.item.lon, lat: picked.item.lat, radiusM: 2600, intensity: picked.item.intensity_3h_mm_h, label: picked.item.name }]
+      const rain = currentRain(picked.item);
+      return rain.intensity > 0
+        ? [{ lon: picked.item.lon, lat: picked.item.lat, radiusM: 2600, intensity: rain.intensity, label: picked.item.name }]
         : [];
     }
     if (real.rain <= 0) return [];
@@ -259,6 +327,7 @@ export default function GlobeView({
       // StrictMode recrée le viewer en développement : réautoriser le cadrage.
       centered.current = false;
       cameraSimulationId.current = null;
+      automaticFloodPrimitives.current = [];
     };
   }, []);
 
@@ -420,6 +489,68 @@ export default function GlobeView({
 
   useEffect(() => {
     const v = viewer.current;
+    if (!v || v.isDestroyed()) return;
+    automaticFloodPrimitives.current.forEach((primitive) => v.scene.primitives.remove(primitive));
+    automaticFloodPrimitives.current = [];
+    if (!floodOn || automaticFloods.length === 0) {
+      v.scene.requestRender();
+      return;
+    }
+    let cancelled = false;
+    void Promise.all(automaticFloods.map((event) => buildFloodPrimitive(event.simulation.result, 0)))
+      .then((primitives) => {
+        if (cancelled || v.isDestroyed()) {
+          primitives.forEach((primitive) => { if (primitive) v.scene.primitives.remove(primitive); });
+          return;
+        }
+        automaticFloodPrimitives.current = primitives.filter(
+          (primitive): primitive is Cesium.GroundPrimitive => primitive !== null,
+        );
+        automaticFloodPrimitives.current.forEach((primitive) => v.scene.primitives.add(primitive));
+        v.scene.requestRender();
+      })
+      .catch((reason: unknown) => {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : "Impossible d'afficher les impacts automatiques en 3D.");
+      });
+    return () => { cancelled = true; };
+  }, [automaticFloods, floodOn]);
+
+  // Emprises pluvieuses au sol : délimitation violette précise de chaque zone où il pleut.
+  useEffect(() => {
+    const v = viewer.current;
+    if (!v || v.isDestroyed()) return;
+    rainPrimitives.current.forEach((primitive) => v.scene.primitives.remove(primitive));
+    rainPrimitives.current = [];
+    if (!rainOn || rainZones.length === 0) {
+      v.scene.requestRender();
+      return;
+    }
+    let cancelled = false;
+    void Promise.all(rainZones.map((zone) => buildRainPrimitive({
+      lon: zone.lon,
+      lat: zone.lat,
+      radiusM: zone.radiusM,
+      intensity: rainVisual(zone.intensity),
+    })))
+      .then((primitives) => {
+        if (cancelled || v.isDestroyed()) {
+          primitives.forEach((primitive) => { if (primitive) v.scene.primitives.remove(primitive); });
+          return;
+        }
+        rainPrimitives.current = primitives.filter(
+          (primitive): primitive is Cesium.GroundPrimitive => primitive !== null,
+        );
+        rainPrimitives.current.forEach((primitive) => v.scene.primitives.add(primitive));
+        v.scene.requestRender();
+      })
+      .catch((reason: unknown) => {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : "Impossible d'afficher les zones de pluie.");
+      });
+    return () => { cancelled = true; };
+  }, [rainZones, rainOn]);
+
+  useEffect(() => {
+    const v = viewer.current;
     if (!v || !simulation || !picked) return;
     v.camera.flyTo({
       destination: Cesium.Cartesian3.fromDegrees(picked.item.lon, picked.item.lat, 1800),
@@ -432,16 +563,26 @@ export default function GlobeView({
   return (
     <div className="globe-wrap">
       <div ref={host} className="globe" role="region" aria-label="Globe 3D" />
-      <aside className="globe-panel">
+      <aside className={`globe-panel${panelOpen ? " open" : ""}`}>
         <button type="button" className="globe-panel-toggle" aria-expanded={panelOpen} onClick={() => setPanelOpen((open) => !open)}>
           <span>Globe 3D · informations</span><span aria-hidden="true">{panelOpen ? "−" : "+"}</span>
         </button>
         {panelOpen && <div className="globe-panel-content">
-          <strong>Mesures réelles</strong>
+          <strong>Données actuelles · mesures et modèle</strong>
           <small>{real.label}</small>
-          <small>Pluie observée/prévue : {real.rain.toFixed(1)} mm/h · Niveau mesuré : {real.flood.toFixed(2)} m</small>
+          <small>{real.rainLabel ?? "Pluie actuelle indisponible"} : {real.rain.toFixed(1)} mm/h · Prévision max. à 3 h : {real.forecast.toFixed(1)} mm/h · Niveau mesuré : {real.flood.toFixed(2)} m</small>
           {simulation && <small className="warn">La couche colorée provient du calcul MNT de la zone sélectionnée.</small>}
-          <label className="chk"><input type="checkbox" checked={rainOn} onChange={(event) => setRainOn(event.target.checked)} />Nuages et pluie au-dessus des zones pluvieuses</label>
+          {automaticFloods.length > 0 && <small className="warn">{automaticFloods.length} emprise(s) automatique(s) estimée(s) depuis des mesures ou estimations météo récentes; aucune ne confirme à elle seule une inondation terrain.</small>}
+          {automaticFloods.map((event) => (
+            <small key={event.id}>
+              {event.name} · {event.source} · {new Date(event.observed_at).toLocaleString("fr-FR")} ·
+              max. {event.simulation.result.stats.max_depth_m.toFixed(2)} m ·
+              {event.simulation.result.stats.area_km2.toFixed(3)} km² ·
+              {event.simulation.result.stats.volume_m3.toLocaleString("fr-FR")} m³
+            </small>
+          ))}
+          {automaticFloods.some((event) => event.simulation.input.mode === "rain") && <small className="warn">Le calcul pluie utilise des seuils et un modèle de ruissellement provisoires.</small>}
+          <label className="chk"><input type="checkbox" checked={rainOn} onChange={(event) => setRainOn(event.target.checked)} />Pluie actuelle rapportée (hors prévisions)</label>
           <label className="chk"><input type="checkbox" checked={floodOn} onChange={(event) => setFloodOn(event.target.checked)} />Afficher l'inondation simulée</label>
           <select value={basemap} onChange={(event) => setBasemap(event.target.value as Basemap)} aria-label="Fond de carte">
             <option value="osm">Plan OpenStreetMap · noms selon le zoom</option><option value="esri">Satellite + noms (Esri) · par défaut</option><option value="nasa">Satellite NASA + noms Esri</option>

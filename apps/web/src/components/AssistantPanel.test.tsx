@@ -11,7 +11,7 @@ const props = {
     status: "active",
     alert_level: "red" as const,
     water_level_cm: 90,
-    last_measured_at: null,
+    last_measured_at: new Date().toISOString(),
     health_status: "online" as const,
     minutes_since_last_reading: 0,
   }],
@@ -45,8 +45,8 @@ it("provides an unauthenticated deterministic answer offline without consent or 
   expect(send).toBeEnabled();
   fireEvent.click(send);
 
-  expect(await screen.findByText(/Mode local déterministe — aucune requête ni donnée/)).toBeInTheDocument();
-  expect(screen.getByText(/1 capteur\(s\).*1 niveau\(x\) rouge\(s\)/)).toBeInTheDocument();
+  expect(await screen.findByText(/Mode local sans connexion API confirmée/)).toBeInTheDocument();
+  expect(screen.getByText(/0 capteur\(s\).*0 niveau\(x\) rouge\(s\)/)).toBeInTheDocument();
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
@@ -124,7 +124,7 @@ it("offers an explicit local summary without authentication, consent, or network
 
   fireEvent.click(screen.getByRole("button", { name: "Résumé des données en mémoire — sans envoi" }));
 
-  expect(await screen.findByText(/Mode local déterministe — aucune requête ni donnée/)).toBeInTheDocument();
+  expect(await screen.findByText(/Mode local sans connexion API confirmée/)).toBeInTheDocument();
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
@@ -145,7 +145,7 @@ it("falls back to a clearly qualified local summary when the API connection fail
   fireEvent.click(await screen.findByRole("checkbox", { name: /En ligne, j'autorise/ }));
   fireEvent.click(screen.getByRole("button", { name: "Envoyer la question" }));
 
-  expect(await screen.findByText(/La requête a peut-être atteint le serveur/)).toBeInTheDocument();
+  expect(await screen.findByText(/Les données en cache ne sont pas présentées comme actuelles/)).toBeInTheDocument();
   expect(screen.getByText(/API injoignable/)).toBeInTheDocument();
   expect(screen.getByRole("checkbox", { name: /En ligne, j'autorise/ })).not.toBeChecked();
   expect(fetchMock).toHaveBeenCalledTimes(2);

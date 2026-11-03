@@ -15,15 +15,20 @@ const f = (e: FormEvent<HTMLFormElement>) => { e.preventDefault(); return Object
 
 export function Manage({ token, user, onDone }: Props) {
   const { msg, run } = useAction(onDone);
+  const [sensorKind, setSensorKind] = useState<"water_level" | "rain_gauge">("water_level");
   return (
     <div className="manage">
       {msg && <p className={msg.ok ? "ok-msg" : "err-msg"} role="status">{msg.text}</p>}
-      <form onSubmit={(e) => { const d = f(e); const form = e.currentTarget; void run(() => authed("/api/v1/sensors", token, { code: d.code, name: d.name, lat: +d.lat, lon: +d.lon, mount_height_cm: +d.h }), "Capteur créé.").then(() => form.reset()); }}>
-        <h3>Nouveau capteur</h3>
+      <form onSubmit={(e) => { const d = f(e); const form = e.currentTarget; void run(() => authed("/api/v1/sensors", token, { code: d.code, name: d.name, lat: +d.lat, lon: +d.lon, kind: d.kind, ...(d.h ? { mount_height_cm: +d.h } : {}) }), "Capteur créé.").then(() => { form.reset(); setSensorKind("water_level"); }); }}>
+        <h3>Nouveau capteur ou pluviomètre</h3>
         <input name="code" placeholder="Code (ex. CI-ABJ-001)" required pattern="[A-Za-z0-9_.\-]+" />
         <input name="name" placeholder="Nom / emplacement" required />
+        <select name="kind" value={sensorKind} onChange={(event) => setSensorKind(event.target.value as "water_level" | "rain_gauge")}>
+          <option value="water_level">Capteur de niveau d'eau</option>
+          <option value="rain_gauge">Pluviomètre (pluie en mm/h)</option>
+        </select>
         <div className="row"><input name="lat" type="number" step="any" min="-90" max="90" placeholder="Latitude" required /><input name="lon" type="number" step="any" min="-180" max="180" placeholder="Longitude" required /></div>
-        <input name="h" type="number" step="any" min="1" placeholder="Hauteur de fixation (cm)" required />
+        {sensorKind === "water_level" && <input name="h" type="number" step="any" min="1" placeholder="Hauteur de fixation (cm)" required />}
         <button>Créer</button>
       </form>
       <form onSubmit={(e) => { const d = f(e); const form = e.currentTarget; void run(() => authed("/api/v1/weather/observations", token, { source: d.source, name: d.name, lat: +d.lat, lon: +d.lon, valid_at: new Date(d.at).toISOString(), precip_mm: +d.mm }), "Bulletin enregistré.").then(() => form.reset()); }}>

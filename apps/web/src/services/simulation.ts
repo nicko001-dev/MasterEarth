@@ -50,6 +50,29 @@ export interface FloodRun {
   input: FloodInput;
 }
 
+export interface AutomaticFloodEvent {
+  id: string;
+  type: "rain_impact_estimate" | "water_level_estimate";
+  name: string;
+  source: string;
+  source_kind: "weather_model" | "provider_report" | "iot_gauge" | "bulletin" | "iot_water_level";
+  observed_at: string;
+  sensor_code?: string;
+  measured_water_level_cm?: number;
+  threshold_mm_h?: number;
+  threshold_24h_mm?: number;
+  rain_24h_mm?: number;
+  trigger_basis?: "hourly" | "24h";
+  simulation: FloodRun;
+}
+
+export interface AutomaticFloodsResponse {
+  generated_at: string;
+  events: AutomaticFloodEvent[];
+  failures: Array<{ name: string; source: string; error: string }>;
+  thresholds_provisional: boolean;
+}
+
 export async function runFloodSimulation(token: string, input: FloodInput): Promise<FloodSimulation> {
   let response: Response;
   try {
@@ -73,6 +96,15 @@ export async function runFloodSimulation(token: string, input: FloodInput): Prom
     );
   }
   return data as FloodSimulation;
+}
+
+export async function fetchAutomaticFloods(): Promise<AutomaticFloodsResponse> {
+  const response = await fetch(`${config.apiBaseUrl}/api/v1/simulations/automatic`);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.error?.message ?? `La situation automatique est indisponible (${response.status}).`);
+  }
+  return data as AutomaticFloodsResponse;
 }
 
 export function decodeDepthCm(encoded: string): Uint16Array {
@@ -99,21 +131,21 @@ export interface DepthClass {
 }
 
 export const DEPTH_CLASSES: readonly DepthClass[] = [
-  { key: "trace", label: "Trace", range: "< 0,05 m", minCm: 0, maxCm: 5, color: "#8ed8ea" },
-  { key: "low", label: "Faible", range: "0,05 – 0,20 m", minCm: 5, maxCm: 20, color: "#1fb5d9" },
-  { key: "moderate", label: "Modéré", range: "0,20 – 0,50 m", minCm: 20, maxCm: 50, color: "#ffd166" },
-  { key: "high", label: "Élevé", range: "0,50 – 1,00 m", minCm: 50, maxCm: 100, color: "#ff9f1c" },
-  { key: "very-high", label: "Très élevé", range: "1,00 – 1,50 m", minCm: 100, maxCm: 150, color: "#ff4d4d" },
-  { key: "critical", label: "Critique", range: "> 1,50 m", minCm: 150, maxCm: Number.POSITIVE_INFINITY, color: "#c04cff" },
+  { key: "trace", label: "Trace", range: "< 0,05 m", minCm: 0, maxCm: 5, color: "#add8ff" },
+  { key: "low", label: "Faible", range: "0,05 – 0,20 m", minCm: 5, maxCm: 20, color: "#64b4ff" },
+  { key: "moderate", label: "Modéré", range: "0,20 – 0,50 m", minCm: 20, maxCm: 50, color: "#3282e6" },
+  { key: "high", label: "Élevé", range: "0,50 – 1,00 m", minCm: 50, maxCm: 100, color: "#1450c8" },
+  { key: "very-high", label: "Très élevé", range: "1,00 – 1,50 m", minCm: 100, maxCm: 150, color: "#0a28a0" },
+  { key: "critical", label: "Critique", range: "> 1,50 m", minCm: 150, maxCm: Number.POSITIVE_INFINITY, color: "#000a78" },
 ] as const;
 
 const DEPTH_COLORS: ReadonlyArray<{ maxCm: number; rgba: readonly [number, number, number, number] }> = [
-  { maxCm: 5, rgba: [142, 216, 234, 150] },
-  { maxCm: 20, rgba: [31, 181, 217, 165] },
-  { maxCm: 50, rgba: [255, 215, 0, 190] },
-  { maxCm: 100, rgba: [255, 155, 0, 205] },
-  { maxCm: 150, rgba: [245, 60, 45, 220] },
-  { maxCm: Number.POSITIVE_INFINITY, rgba: [170, 20, 180, 230] },
+  { maxCm: 5, rgba: [173, 216, 255, 150] },
+  { maxCm: 20, rgba: [100, 180, 255, 170] },
+  { maxCm: 50, rgba: [50, 130, 230, 195] },
+  { maxCm: 100, rgba: [20, 80, 200, 215] },
+  { maxCm: 150, rgba: [10, 40, 160, 230] },
+  { maxCm: Number.POSITIVE_INFINITY, rgba: [0, 10, 120, 245] },
 ];
 
 export function buildFloodPixels(
@@ -136,7 +168,7 @@ export function buildFloodPixels(
         depthCm[source] > 0
           ? DEPTH_COLORS.find(({ maxCm }) => depthCm[source] <= maxCm)?.rgba
           : possible[source]
-            ? ([255, 205, 70, 65] as const)
+            ? ([160, 200, 255, 65] as const)
             : undefined;
       if (!color) continue;
       rgba[dest] = color[0];

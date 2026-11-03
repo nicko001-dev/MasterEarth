@@ -132,6 +132,64 @@ def test_provider_catalog_filters_to_explicitly_free_models():
     )
 
 
+def test_ai_context_separates_fresh_measurements_from_models_and_forecasts(monkeypatch):
+    sensors = [
+        {
+            "kind": "water_level",
+            "health_status": "online",
+            "water_level_cm": 85.0,
+            "alert_level": "red",
+        },
+        {
+            "kind": "water_level",
+            "health_status": "stale",
+            "water_level_cm": 95.0,
+            "alert_level": "red",
+        },
+    ]
+    weather_points = [
+        {
+            "observed_level": None,
+            "observed_precip_mm_h": None,
+            "observed_24h_mm": 0.0,
+            "modeled_precip_mm_h": 15.0,
+            "modeled_24h_mm": 30.0,
+            "forecast_intensity_3h_mm_h": 35.0,
+            "level": "orange",
+        },
+        {
+            "observed_level": "orange",
+            "observed_precip_mm_h": 12.0,
+            "observed_24h_mm": 50.0,
+            "modeled_precip_mm_h": None,
+            "modeled_24h_mm": 0.0,
+            "forecast_intensity_3h_mm_h": 0.0,
+            "level": "orange",
+        },
+    ]
+    monkeypatch.setattr(ai.monitoring, "list_sensors", lambda _db: sensors)
+    monkeypatch.setattr(ai.monitoring, "list_alerts", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(ai.weather, "summary", lambda _db: weather_points)
+
+    context, _ = ai.build_flood_context(None)
+
+    assert context["sensor_summary"]["with_recent_measurement"] == 1
+    assert context["sensor_summary"]["current_alert_level_counts"] == {
+        "green": 0,
+        "orange": 0,
+        "red": 1,
+    }
+    assert context["weather_summary"]["observed_risk_level_counts"] == {
+        "green": 0,
+        "orange": 1,
+        "red": 0,
+    }
+    assert context["weather_summary"]["modeled_current_points"] == 1
+    assert context["weather_summary"]["forecast_points"] == 1
+    assert context["weather_summary"]["maximum_observed_rain_1h_mm"] == 12.0
+    assert context["weather_summary"]["maximum_forecast_rain_3h_mm_h"] == 35.0
+
+
 def test_catalog_response_does_not_promote_paid_openrouter_fallbacks(monkeypatch):
     class Response:
         status_code = 200
