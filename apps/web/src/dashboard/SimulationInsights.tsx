@@ -30,6 +30,11 @@ type Props = {
   updatedAt: string;
   offline: boolean;
   loading: boolean;
+  liveDate?: Date;
+  secondsSinceLastUpdate?: number;
+  liveTicker?: number;
+  isRefreshing?: boolean;
+  onRefreshWeather?: () => void;
   onSelectSensor?: (code: string) => void;
   onShowSensors?: () => void;
 };
@@ -106,6 +111,11 @@ export function SimulationInsights({
   updatedAt,
   offline,
   loading,
+  liveDate,
+  secondsSinceLastUpdate = 0,
+  liveTicker = 0,
+  isRefreshing = false,
+  onRefreshWeather,
   onSelectSensor,
   onShowSensors,
 }: Props) {
@@ -142,18 +152,44 @@ export function SimulationInsights({
     const maxModeledIntensity = strongestModeled?.modeled_precip_mm_h ?? 0;
     const maxIntensity = Math.max(maxObservedIntensity, maxModeledIntensity);
     const autoEvents = automaticFloods?.events ?? [];
+
+    const timeString = liveDate
+      ? liveDate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+      : "";
+
     return (
       <>
-        {/* Carte Météo Temps Réel — toujours visible */}
+        {/* Carte Météo Temps Réel — toujours visible avec actualisation continue seconde par seconde */}
         <section className="insight-card weather-realtime-card">
           <header className="card-head">
             <span className="card-icon" style={{ color: "#64b4ff", background: "#64b4ff1f" }}>
               <Icon name="weather" />
             </span>
-            <div>
-              <h3>Météo temps réel</h3>
-              <small>Côte d'Ivoire · données actualisées automatiquement</small>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+                <h3>Météo temps réel</h3>
+                <span className="live-pill-badge" title="Flux télémétrique continu 1 Hz">
+                  <span className="live-dot" />
+                  <span>1 Hz EN DIRECT</span>
+                </span>
+              </div>
+              <small>
+                {timeString ? `Heure locale : ${timeString}` : "Côte d'Ivoire · flux en direct"}
+                {" · "}synchro il y a {secondsSinceLastUpdate}s
+              </small>
             </div>
+            {onRefreshWeather && (
+              <button
+                type="button"
+                className="icon-button"
+                style={{ alignSelf: "flex-start" }}
+                onClick={onRefreshWeather}
+                title="Actualiser la météo immédiatement"
+                aria-label="Actualiser la météo"
+              >
+                <Icon name="refresh" size={15} className={isRefreshing ? "spin-icon" : ""} />
+              </button>
+            )}
           </header>
           <div className="overview-metrics">
             <div><strong>{weather.length}</strong><span>points météo</span></div>
@@ -169,12 +205,25 @@ export function SimulationInsights({
               {allRainPoints.slice(0, 5).map((item) => {
                 const intensity = item.observed_precip_mm_h ?? item.modeled_precip_mm_h ?? 0;
                 const isObserved = item.observed_precip_mm_h != null;
+                const percentBar = Math.min(100, Math.round((intensity / 50) * 100));
                 return (
                   <li key={`${item.source}-${item.name}`}>
                     <i style={{ background: intensity >= 30 ? "#ff4d4d" : intensity >= 10 ? "#f5b942" : "#35d39a" }} />
-                    <div>
-                      <span>{item.name}</span>
-                      <small>{intensity.toFixed(1)} mm/h {isObserved ? "rapportés" : "estimés"} · {item.source}</small>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>{item.name}</span>
+                        <strong style={{ fontSize: "0.76rem" }}>{intensity.toFixed(1)} mm/h</strong>
+                      </div>
+                      <div className="rain-mini-bar-track">
+                        <div
+                          className="rain-mini-bar-fill"
+                          style={{
+                            width: `${percentBar}%`,
+                            background: intensity >= 30 ? "#ff4d4d" : intensity >= 10 ? "#f5b942" : "#37c6f4",
+                          }}
+                        />
+                      </div>
+                      <small>{isObserved ? "Mesure rapportée" : "Estimation radar"} · {item.source}</small>
                     </div>
                   </li>
                 );
@@ -187,7 +236,7 @@ export function SimulationInsights({
           )}
           {weatherError && <p className="err-msg" role="alert">Météo : {weatherError}</p>}
           {weatherStatus && <small className="card-footer">
-            Collecte : {weatherStatus.refresh_interval_minutes} min · {
+            Collecte continue · {
               weatherStatus.providers.map((provider) => `${provider.source} : ${provider.status}`).join(" · ")
             }
           </small>}

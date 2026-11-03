@@ -6,6 +6,7 @@ import * as Cesium from 'cesium';
 import { RAIN_FRAGMENT, altitudeFade, rainVisual } from './rain.js';
 import { b64ToU16, b64ToU8, buildWaterPrimitive } from './flood.js';
 import { governorRequestRender, holdContinuousRender, releaseContinuousRender } from '../renderGovernor.js';
+import { setOverlayEntries } from '../overlays/worldOverlay.js';
 
 const API = '/intelliflood-api';
 const COLORS = { green: '#2ecc71', orange: '#f28c28', red: '#ff3b30' };
@@ -109,17 +110,34 @@ function start(viewer) {
       [state.sensors, state.weather, state.alerts] = await Promise.all([api('/api/v1/sensors'), api('/api/v1/weather').catch(() => []), api('/api/v1/alerts?limit=5')]);
       ds.entities.removeAll();
       state.sensors.forEach((s) => ds.entities.add({ id: 'sensor:' + s.code, position: Cesium.Cartesian3.fromDegrees(s.lon, s.lat, 30), name: s.name,
-        point: { pixelSize: 15, color: Cesium.Color.fromCssColorString(COLORS[s.alert_level]), outlineColor: Cesium.Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
-        label: { text: s.name, font: '13px sans-serif', pixelOffset: new Cesium.Cartesian2(0, -24), fillColor: Cesium.Color.WHITE, outlineColor: Cesium.Color.BLACK, outlineWidth: 3, style: Cesium.LabelStyle.FILL_AND_OUTLINE, distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 300000), disableDepthTestDistance: Number.POSITIVE_INFINITY } }));
+        point: { pixelSize: 15, color: Cesium.Color.fromCssColorString(COLORS[s.alert_level]), outlineColor: Cesium.Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY } }));
+      setOverlayEntries('intelliflood-sensors', state.sensors.map((s) => ({
+        id: 'sensor:' + s.code,
+        position: Cesium.Cartesian3.fromDegrees(s.lon, s.lat, 30),
+        variant: 'label',
+        title: s.name,
+        accent: COLORS[s.alert_level],
+        collisionGroup: 'ambient-label',
+        paintLane: 'ambient-label',
+        maxDistance: 300000,
+        gapPx: 24,
+        verticalOnly: true,
+        placement: 'above',
+      })));
       state.weather.forEach((w) => ds.entities.add({ id: 'weather:' + w.name, position: Cesium.Cartesian3.fromDegrees(w.lon, w.lat, 30), name: 'Pluie — ' + w.name,
         point: { pixelSize: 22, color: Cesium.Color.fromCssColorString(COLORS[w.level]).withAlpha(0.28), outlineColor: Cesium.Color.fromCssColorString(COLORS[w.level]), outlineWidth: 4, disableDepthTestDistance: Number.POSITIVE_INFINITY } }));
       const worst = state.sensors.some((s) => s.alert_level === 'red') ? 'red' : state.sensors.some((s) => s.alert_level === 'orange') ? 'orange' : 'green';
       toggle.querySelector('i').style.background = COLORS[worst];
+      // i18n-ignore: IntelliFlood's domain UI is intentionally French-only.
       $('if-status').textContent = `${state.sensors.length} capteurs · situation ${LABELS[worst]}`;
+      // i18n-ignore: IntelliFlood's domain UI is intentionally French-only.
       $('if-alerts').innerHTML = state.alerts.map((a) => `<li><i style="background:${COLORS[a.level]}"></i><span>${esc(a.message)}<br><small>${new Date(a.triggered_at).toLocaleString('fr-FR')}</small></span></li>`).join('') || '<li><span class="muted">Aucune alerte.</span></li>';
       $('if-sensor').innerHTML = state.sensors.map((s) => `<option value="${esc(s.code)}">${esc(s.name)}</option>`).join('');
       applyRain(); governorRequestRender('intelliflood-data');
-    } catch (e) { $('if-status').innerHTML = '<span class="err">API IntelliFlood injoignable</span>'; }
+    } catch (e) {
+      // i18n-ignore: IntelliFlood's domain UI is intentionally French-only.
+      $('if-status').innerHTML = '<span class="err">API IntelliFlood injoignable</span>';
+    }
   };
   const applyRain = () => {
     const mode = $('if-rain-src').value;
@@ -129,8 +147,14 @@ function start(viewer) {
       const p = state.picked; const w = p && (p.startsWith('weather:') ? state.weather.find((x) => 'weather:' + x.name === p)
         : state.weather.reduce((b, x) => { const s = state.sensors.find((q) => 'sensor:' + q.code === p); return s && (!b || Math.hypot(x.lat - s.lat, x.lon - s.lon) < Math.hypot(b.lat - s.lat, b.lon - s.lon)) ? x : b; }, null));
       mm = w ? w.intensity_3h_mm_h : 0;
+      // i18n-ignore: IntelliFlood's domain UI is intentionally French-only.
       $('if-rain-info').textContent = w ? `Pluie des 3 prochaines heures à ${w.name} : ${mm} mm/h (${w.source})` : 'Cliquez un capteur ou un anneau météo pour choisir le point.';
-    } else { $('if-rain-label').textContent = `Intensité : ${mm} mm/h`; $('if-rain-info').textContent = 'Scénario : pluie fictive pour illustration.'; }
+    } else {
+      // i18n-ignore: IntelliFlood's domain UI is intentionally French-only.
+      $('if-rain-label').textContent = `Intensité : ${mm} mm/h`;
+      // i18n-ignore: IntelliFlood's domain UI is intentionally French-only.
+      $('if-rain-info').textContent = 'Scénario : pluie fictive pour illustration.';
+    }
     state.rain = rainVisual(mm); syncRainRender();
   };
   $('if-rain-on').onchange = (e) => { state.rainOn = e.target.checked; syncRainRender(); };
@@ -147,6 +171,7 @@ function start(viewer) {
 
   // --- Simulation d'inondation
   const showLogin = () => {
+    // i18n-ignore: IntelliFlood's domain UI is intentionally French-only.
     $('if-login').innerHTML = state.token ? '<small class="ok">Connecté.</small> <button class="ghost" id="if-logout">Déconnexion</button>'
       : '<small class="muted">Connexion requise pour simuler.</small><input id="if-email" type="email" placeholder="E-mail" autocomplete="username"><input id="if-pass" type="password" placeholder="Mot de passe" autocomplete="current-password"><button id="if-loginbtn">Se connecter</button> <small id="if-loginerr" class="err"></small>';
     $('if-simform').hidden = !state.token;
@@ -154,6 +179,7 @@ function start(viewer) {
     state.aiStatusReady = false;
     $('if-ai-consent').checked = false;
     $('if-ai-question').value = '';
+    // i18n-ignore: IntelliFlood's domain UI is intentionally French-only.
     $('if-ai-provider-info').textContent = state.token ? 'Vérification des fournisseurs IA…' : 'Connexion requise.';
     const updateAiSend = () => {
       $('if-ai-send').disabled = !state.token || !state.aiStatusReady
@@ -164,12 +190,14 @@ function start(viewer) {
       api('/api/v1/ai/status', { token: activeToken }).then((status) => {
         if (state.token !== activeToken) return;
         state.aiStatusReady = true;
+        // i18n-ignore: IntelliFlood's domain UI is intentionally French-only.
         $('if-ai-provider-info').textContent = status.providers.length
           ? status.providers.map((provider) => `${provider.name} (${provider.models.join(', ')}): ${provider.billing_note}`).join(' · ')
           : 'Aucun fournisseur IA configuré; le serveur répondra en mode local déterministe.';
         updateAiSend();
       }).catch(() => {
         if (state.token !== activeToken) return;
+        // i18n-ignore: IntelliFlood's domain UI is intentionally French-only.
         $('if-ai-provider-info').textContent = 'Destinataires impossibles à vérifier; aucune question ne sera envoyée.';
       });
     }
@@ -187,6 +215,7 @@ function start(viewer) {
       const question = $('if-ai-question').value.trim();
       if (!state.token || !state.aiStatusReady || !question || !$('if-ai-consent').checked) return;
       $('if-ai-send').disabled = true;
+      // i18n-ignore: IntelliFlood's domain UI is intentionally French-only.
       $('if-ai-result').textContent = 'Analyse en cours…';
       try {
         const result = await api('/api/v1/ai/assistant', {
@@ -194,6 +223,7 @@ function start(viewer) {
           token: state.token,
           body: { message: question, mode: 'answer', external_consent: true, surface: 'gev' },
         });
+        // i18n-ignore: IntelliFlood's domain UI is intentionally French-only.
         $('if-ai-result').textContent = `${result.mode === 'cloud_ai' ? `IA ${result.provider} / ${result.model}` : 'Mode local déterministe'}\n${result.answer}\nSources : ${(result.sources || []).join('; ')}\nInformation non décisionnelle; validation humaine requise.`;
         $('if-ai-question').value = '';
         $('if-ai-consent').checked = false;
@@ -223,11 +253,13 @@ function start(viewer) {
   };
   const renderResult = () => {
     const s = state.sim; if (!s) { $('if-result').innerHTML = ''; return; }
+    // i18n-ignore: IntelliFlood's domain UI is intentionally French-only.
     $('if-result').innerHTML = `<p><strong>Profondeur max ${s.stats.max_depth_m} m</strong> · ${s.stats.area_km2} km² (possible : ${s.stats.possible_area_km2} km²) · ${s.stats.volume_m3.toLocaleString('fr-FR')} m³<br><small>${esc($('if-result').dataset.frame || '')}</small></p>
       <details><summary>Hypothèses</summary><ul>${s.assumptions.map((a) => `<li><span>${esc(a)}</span></li>`).join('')}</ul></details><p class="warn">${esc(s.disclaimer)}</p>
       <small class="muted">Jaune : étendue possible compte tenu de l'incertitude du terrain.</small>`;
   };
   $('if-run').onclick = async () => {
+    // i18n-ignore: IntelliFlood's domain UI is intentionally French-only.
     const mode = $('if-mode').value; $('if-result').innerHTML = '<small class="muted">Calcul en cours…</small>';
     const body = { mode, radius_m: Number($('if-radius').value), steps: Number($('if-steps').value), cells: 120 };
     if (mode === 'sensor') body.sensor_code = $('if-sensor').value; else { body.lat = Number($('if-lat').value); body.lon = Number($('if-lon').value); }
@@ -246,8 +278,11 @@ function start(viewer) {
   };
   $('if-frame').oninput = (e) => showFrame(Number(e.target.value));
   $('if-playbtn').onclick = () => {
+    // i18n-ignore: IntelliFlood's domain UI is intentionally French-only.
     if (state.timer) { clearInterval(state.timer); state.timer = null; $('if-playbtn').textContent = '▶ Lecture'; return; }
+    // i18n-ignore: IntelliFlood's domain UI is intentionally French-only.
     $('if-playbtn').textContent = '⏸ Pause'; let i = 0;
+    // i18n-ignore: IntelliFlood's domain UI is intentionally French-only.
     state.timer = setInterval(() => { showFrame(i); $('if-frame').value = i; i++; if (i >= state.sim.frames.length) { clearInterval(state.timer); state.timer = null; $('if-playbtn').textContent = '▶ Lecture'; } }, 900);
   };
   $('if-clear').onclick = () => { clearWater(); state.sim = null; $('if-play').hidden = true; renderResult(); };

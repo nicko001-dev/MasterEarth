@@ -372,7 +372,7 @@ export function initFirstRunExperience({
   const description = root.querySelector('#first-run-description');
   if (description)
     description.textContent = t(
-      'Une seule vue pour la pluie, l’eau et le risque : les sources sont publiques et les données sont réelles.',
+      'It feels like a forbidden cockpit—then you realize the sources are public and the data is real.',
     );
 
   const status = root.querySelector('[data-first-run-status]');

@@ -124,12 +124,14 @@ export default function GlobeView({
   simulation,
   automaticFloods = [],
   frameIndex = 0,
+  flyToTarget = null,
 }: {
   sensors: SensorState[];
   weather: WeatherItem[];
   simulation?: FloodRun | null;
   automaticFloods?: AutomaticFloodEvent[];
   frameIndex?: number;
+  flyToTarget?: { lat: number; lon: number; height?: number; timestamp?: number } | null;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const viewer = useRef<Cesium.Viewer | null>(null);
@@ -430,19 +432,120 @@ export default function GlobeView({
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
     }));
-    sensors.forEach((s) => v.entities.add({
-      position: Cesium.Cartesian3.fromDegrees(s.lon, s.lat, 30), name: s.name,
-      point: { pixelSize: 15, color: Cesium.Color.fromCssColorString(LEVEL_COLOR[s.alert_level]), outlineColor: Cesium.Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
-      label: { text: s.name, font: "13px sans-serif", pixelOffset: new Cesium.Cartesian2(0, -24), fillColor: Cesium.Color.WHITE, outlineColor: Cesium.Color.BLACK, outlineWidth: 3, style: Cesium.LabelStyle.FILL_AND_OUTLINE, distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 300_000), disableDepthTestDistance: Number.POSITIVE_INFINITY },
-      properties: { pick: { kind: "sensor", item: s } },
-    }));
-    weather.forEach((w) => v.entities.add({
-      position: Cesium.Cartesian3.fromDegrees(w.lon, w.lat, 30), name: `Pluie — ${w.name}`,
-      point: { pixelSize: 22, color: Cesium.Color.fromCssColorString(LEVEL_COLOR[w.level]).withAlpha(0.28), outlineColor: Cesium.Color.fromCssColorString(LEVEL_COLOR[w.level]), outlineWidth: 4, disableDepthTestDistance: Number.POSITIVE_INFINITY },
-      properties: { pick: { kind: "weather", item: w } },
-    }));
+    // Affichage des capteurs avec distinction des risques visibles de loin
+    sensors.forEach((s) => {
+      const isOnline = s.health_status === "online";
+      const isFlood = isOnline && s.alert_level !== "green";
+      const nearbyRain = weather.some(
+        (w) => (w.observed_precip_mm_h ?? w.modeled_precip_mm_h ?? 0) > 0 && Math.hypot(w.lat - s.lat, w.lon - s.lon) < 0.12,
+      );
+      const isCompound = isFlood && nearbyRain;
+
+      v.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(s.lon, s.lat, 35),
+        name: isCompound ? `🚨 Pluie + Inondation — ${s.name}` : isFlood ? `🌊 Inondation — ${s.name}` : s.name,
+        point: {
+          pixelSize: isCompound ? 26 : isFlood ? 22 : 14,
+          color: isCompound
+            ? Cesium.Color.fromCssColorString("#ff1744")
+            : isFlood
+              ? Cesium.Color.fromCssColorString("#d32f2f")
+              : Cesium.Color.fromCssColorString(LEVEL_COLOR[s.alert_level]),
+          outlineColor: Cesium.Color.WHITE,
+          outlineWidth: isCompound || isFlood ? 3 : 2,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 5_000_000), // Visible même à l'échelle pays
+        },
+        label: {
+          text: isCompound ? `🚨 ${s.name} (Pluie+Inondation)` : isFlood ? `🌊 ${s.name} (Inondation)` : s.name,
+          font: isCompound || isFlood ? "bold 13px sans-serif" : "12px sans-serif",
+          pixelOffset: new Cesium.Cartesian2(0, -26),
+          fillColor: isCompound ? Cesium.Color.fromCssColorString("#ff4d5e") : Cesium.Color.WHITE,
+          outlineColor: Cesium.Color.BLACK,
+          outlineWidth: 3,
+          style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+          distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 3_000_000),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+        properties: { pick: { kind: "sensor", item: s } },
+      });
+    });
+
+    // Affichage météo :
+    // 1. Simple pluie -> orange (#ffa726)
+    // 2. Pluie + inondation -> rouge vif clignotant / alerte
+    weather.forEach((w) => {
+      const rain = w.observed_precip_mm_h ?? w.modeled_precip_mm_h ?? 0;
+      const isRain = rain > 0;
+      const nearbyFlood = sensors.some(
+        (s) => s.health_status === "online" && s.alert_level !== "green" && Math.hypot(s.lat - w.lat, s.lon - w.lon) < 0.12,
+      );
+      const isCompound = isRain && nearbyFlood;
+
+      const pointColor = isCompound
+        ? Cesium.Color.fromCssColorString("#ff1744")
+        : isRain
+          ? Cesium.Color.fromCssColorString("#f57c00") // Icône orange demandée
+          : Cesium.Color.fromCssColorString(LEVEL_COLOR[w.level]).withAlpha(0.28);
+
+      v.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(w.lon, w.lat, 35),
+        name: isCompound ? `🚨 Pluie + Inondation — ${w.name}` : isRain ? `🌧️ Pluie — ${w.name}` : `Pluie — ${w.name}`,
+        point: {
+          pixelSize: isCompound ? 26 : isRain ? 20 : 16,
+          color: pointColor,
+          outlineColor: isRain || isCompound ? Cesium.Color.WHITE : Cesium.Color.fromCssColorString(LEVEL_COLOR[w.level]),
+          outlineWidth: isCompound ? 3 : isRain ? 2.5 : 1.5,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 5_000_000), // Visible de loin
+        },
+        label: {
+          text: isCompound
+            ? `🚨 ${w.name} (PLUIE + INONDATION)`
+            : isRain
+              ? `🌧️ ${w.name} (${rain.toFixed(1)} mm/h)`
+              : w.name,
+          font: isCompound ? "bold 13px sans-serif" : isRain ? "bold 12px sans-serif" : "11px sans-serif",
+          pixelOffset: new Cesium.Cartesian2(0, -26),
+          fillColor: isCompound
+            ? Cesium.Color.fromCssColorString("#ff1744")
+            : isRain
+              ? Cesium.Color.fromCssColorString("#ffa726") // Étiquette orange
+              : Cesium.Color.WHITE,
+          outlineColor: Cesium.Color.BLACK,
+          outlineWidth: 3,
+          style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+          distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 3_000_000),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+        properties: { pick: { kind: "weather", item: w } },
+      });
+    });
     v.scene.requestRender();
   }, [sensors, weather]);
+
+  // Localisation dynamique 3D lorsqu'on clique sur "Localiser"
+  useEffect(() => {
+    if (!flyToTarget || !viewer.current || viewer.current.isDestroyed()) return;
+    const v = viewer.current;
+    const targetHeight = flyToTarget.height ?? 10_000;
+    v.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(flyToTarget.lon, flyToTarget.lat, targetHeight),
+      orientation: {
+        heading: Cesium.Math.toRadians(0),
+        pitch: Cesium.Math.toRadians(-45),
+        roll: 0,
+      },
+      duration: 2.2,
+    });
+    const matchWeather = weather.find(
+      (w) => Math.hypot(w.lat - flyToTarget.lat, w.lon - flyToTarget.lon) < 0.08,
+    );
+    if (matchWeather) {
+      setPicked({ kind: "weather", item: matchWeather });
+      setPanelOpen(true);
+    }
+  }, [flyToTarget, weather]);
 
   // Simulation rasterisée sur la zone demandée; les mesures réelles restent des points d'observation.
   useEffect(() => {

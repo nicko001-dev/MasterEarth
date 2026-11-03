@@ -3,7 +3,16 @@ import { AlertItem, SensorState, WeatherItem, WeatherStatus, fetchAlerts, fetchS
 import { AutomaticFloodsResponse, fetchAutomaticFloods } from "../services/simulation";
 
 const KEY = "intelliflood.monitoring.v1";
-const REFRESH_MS = 10_000;
+const REFRESH_MS = 5_000; // Fréquence d'actualisation temps réel accélérée (5s)
+
+export interface LiveWeatherMetrics {
+  instantaneousMaxMmH: number;
+  activeRainCount: number;
+  forecastRainCount: number;
+  highestRiskItem: WeatherItem | null;
+  averageRainMmH: number;
+  totalEstimated24hMm: number;
+}
 
 interface Snapshot { sensors: SensorState[]; alerts: AlertItem[]; weather: WeatherItem[]; weatherStatus: WeatherStatus | null; automaticFloods: AutomaticFloodsResponse | null; updatedAt: string }
 
@@ -70,10 +79,15 @@ export function useMonitoring() {
   dataRef.current = data;
   const [offline, setOffline] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [weatherError, setWeatherError] = useState<string | null>(null);
   const [automaticFloodError, setAutomaticFloodError] = useState<string | null>(null);
+  const [liveDate, setLiveDate] = useState<Date>(() => new Date());
+  const [secondsSinceLastUpdate, setSecondsSinceLastUpdate] = useState<number>(0);
+  const [liveTicker, setLiveTicker] = useState<number>(0);
 
   const refresh = useCallback(async () => {
+    setIsRefreshing(true);
     try {
       const [sensors, alerts, weatherResult, statusResult, automaticResult] = await Promise.all([
         fetchSensors(),
@@ -109,6 +123,7 @@ export function useMonitoring() {
       setAutomaticFloodError("value" in automaticResult ? null : automaticResult.error instanceof Error ? automaticResult.error.message : "Impacts automatiques indisponibles.");
       dataRef.current = snap;
       setData(snap);
+      setSecondsSinceLastUpdate(0);
       setWeatherError(errors.length ? errors.join(" ") : null);
       setOffline(false);
       try { localStorage.setItem(KEY, JSON.stringify(snap)); } catch { /* stockage plein ou indisponible */ }
@@ -116,7 +131,22 @@ export function useMonitoring() {
       setOffline(true);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
+  }, []);
+
+  // Horloge temps réel seconde par seconde (1 Hz)
+  useEffect(() => {
+    const secondTimer = window.setInterval(() => {
+      const now = new Date();
+      setLiveDate(now);
+      setLiveTicker((t) => t + 1);
+      if (dataRef.current.updatedAt) {
+        const diffSec = Math.max(0, Math.floor((now.getTime() - new Date(dataRef.current.updatedAt).getTime()) / 1000));
+        setSecondsSinceLastUpdate(diffSec);
+      }
+    }, 1000);
+    return () => window.clearInterval(secondTimer);
   }, []);
 
   useEffect(() => {
@@ -125,5 +155,38 @@ export function useMonitoring() {
     return () => window.clearInterval(id);
   }, [refresh]);
 
-  return { ...data, offline, loading, weatherError, automaticFloodError, refresh };
+  // Calcul continu des métriques météo temps réel
+  const liveMetrics: LiveWeatherMetrics = {
+    instantaneousMaxMmH: data.weather.reduce((max, w) => {
+      const val = w.observed_precip_mm_h ?? w.modeled_precip_mm_h ?? 0;
+      return Math.max(max, val);
+    }, 0),
+    activeRainCount: data.weather.filter((w) => (w.observed_precip_mm_h ?? w.modeled_precip_mm_h ?? 0) > 0).length,
+    forecastRainCount: data.weather.filter((w) => (w.forecast_intensity_3h_mm_h ?? w.intensity_3h_mm_h) > 0).length,
+    highestRiskItem: data.weather.reduce<WeatherItem | null>((highest, item) => {
+      if (!highest) return item;
+      const rank = (lvl?: string | null) => (lvl === "red" ? 3 : lvl === "orange" ? 2 : lvl === "yellow" ? 1 : 0);
+      const currLvl = rank(item.observed_level ?? item.level);
+      const prevLvl = rank(highest.observed_level ?? highest.level);
+      return currLvl > prevLvl ? item : highest;
+    }, null),
+    averageRainMmH: data.weather.length > 0
+      ? data.weather.reduce((sum, w) => sum + (w.observed_precip_mm_h ?? w.modeled_precip_mm_h ?? 0), 0) / data.weather.length
+      : 0,
+    totalEstimated24hMm: data.weather.reduce((sum, w) => sum + (w.observed_24h_mm ?? w.modeled_24h_mm ?? w.accumulated_24h_mm ?? 0), 0),
+  };
+
+  return {
+    ...data,
+    offline,
+    loading,
+    isRefreshing,
+    weatherError,
+    automaticFloodError,
+    liveDate,
+    secondsSinceLastUpdate,
+    liveTicker,
+    liveMetrics,
+    refresh,
+  };
 }

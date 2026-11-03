@@ -117,6 +117,10 @@ export function SensorMap({
     sensorLayer.current.clearLayers();
     weatherLayer.current.clearLayers();
     alertLayer.current.clearLayers();
+    // Traitement des alertes capteurs et météo selon les 3 catégories demandées :
+    // 1. Simple pluie -> icône orange
+    // 2. Inondation -> icône rouge fixe
+    // 3. Pluie + Inondation -> icône rouge clignotante
     sensors.forEach((sensor) => {
       const currentMeasurement = sensor.health_status === "online";
       const color = currentMeasurement ? LEVEL_COLOR[sensor.alert_level] : "#7f91a6";
@@ -132,20 +136,36 @@ export function SensorMap({
           : `${sensor.name} — ${sensor.water_level_cm == null ? "pas de mesure" : `${sensor.water_level_cm.toFixed(0)} cm`}${currentMeasurement ? "" : " — mesure non actuelle"}`)
         .on("click", () => onSelect?.(sensor.code))
         .addTo(sensorLayer.current!);
+
       if (currentMeasurement && sensor.alert_level !== "green") {
+        const nearbyRain = weather.find(
+          (w) => (w.observed_precip_mm_h ?? w.modeled_precip_mm_h ?? 0) > 0 && Math.hypot(w.lat - sensor.lat, w.lon - sensor.lon) < 0.12,
+        );
+        const isCompound = Boolean(nearbyRain);
         L.marker([sensor.lat, sensor.lon], {
-          icon: L.divIcon({ className: "hazard-map-icon flood-hazard", html: "<span aria-hidden=\"true\">⚠</span>", iconSize: [30, 30], iconAnchor: [15, 15] }),
-          title: `Alerte inondation — ${sensor.name}`,
+          icon: L.divIcon({
+            className: `hazard-map-icon ${isCompound ? "compound-hazard" : "flood-hazard"}`,
+            html: `<span aria-hidden="true">${isCompound ? "⛈️" : "🌊"}</span>`,
+            iconSize: [32, 32],
+            iconAnchor: [16, 16],
+          }),
+          title: isCompound
+            ? `🚨 Pluie + Inondation — ${sensor.name} (${nearbyRain?.name})`
+            : `Alerte inondation — ${sensor.name}`,
           keyboard: true,
+          zIndexOffset: 1200,
         }).addTo(alertLayer.current!);
       }
     });
+
     weather.forEach((item) => {
       const observed = item.observed_precip_mm_h;
       const modeled = item.modeled_precip_mm_h;
       const forecast = item.forecast_intensity_3h_mm_h ?? item.intensity_3h_mm_h;
       const level = item.observed_level ?? item.forecast_level ?? item.level;
-      const isRaining = (observed ?? modeled ?? 0) > 0;
+      const currentRainVal = observed ?? modeled ?? 0;
+      const isRaining = currentRainVal > 0;
+
       // Zone violette au sol pour les points où il pleut actuellement
       if (isRaining) {
         L.circle([item.lat, item.lon], {
@@ -158,6 +178,7 @@ export function SensorMap({
           interactive: false,
         }).addTo(weatherLayer.current!);
       }
+
       L.circleMarker([item.lat, item.lon], {
         radius: 17,
         color: LEVEL_COLOR[level],
@@ -176,11 +197,36 @@ export function SensorMap({
           } ; prévision max. à 3 h : ${forecast} mm/h`,
         )
         .addTo(weatherLayer.current!);
-      if ((observed ?? modeled ?? 0) > 0 || forecast > 0 || level !== "green") {
+
+      if (isRaining || forecast >= 10 || level !== "green") {
+        // Vérifier s'il y a une inondation active à proximité
+        const nearbyFloodSensor = sensors.find(
+          (s) => s.health_status === "online" && s.alert_level !== "green" && Math.hypot(s.lat - item.lat, s.lon - item.lon) < 0.12,
+        );
+        const nearbyAutoFlood = automaticFloods.find(
+          (f) => Math.hypot(f.simulation.result.center.lat - item.lat, f.simulation.result.center.lon - item.lon) < 0.12,
+        );
+        const hasFlood = Boolean(nearbyFloodSensor || nearbyAutoFlood);
+
+        // Classification demandée :
+        // - Pluie seule -> Icône orange (rain-simple)
+        // - Pluie + inondation -> Icône rouge clignotante (compound-hazard)
+        const hazardClass = hasFlood ? "compound-hazard" : "rain-simple";
+        const glyph = hasFlood ? "⛈️" : "🌧️";
+        const titleText = hasFlood
+          ? `🚨 PLUIE + INONDATION — ${item.name} (${currentRainVal.toFixed(1)} mm/h + Inondation active)`
+          : `Zone de pluie — ${item.name} (${currentRainVal.toFixed(1)} mm/h)`;
+
         L.marker([item.lat, item.lon], {
-          icon: L.divIcon({ className: "hazard-map-icon rain-hazard", html: `<span aria-hidden="true">${level === "green" ? "☔" : "⚠"}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] }),
-          title: `${observed != null ? "Pluie rapportée" : modeled != null ? "Pluie estimée par le modèle" : "Risque/prévision de pluie"} — ${item.name}`,
+          icon: L.divIcon({
+            className: `hazard-map-icon ${hazardClass}`,
+            html: `<span aria-hidden="true">${glyph}</span>`,
+            iconSize: [30, 30],
+            iconAnchor: [15, 15],
+          }),
+          title: titleText,
           keyboard: true,
+          zIndexOffset: hasFlood ? 1100 : 900,
         }).addTo(alertLayer.current!);
       }
     });

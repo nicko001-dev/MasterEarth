@@ -68,7 +68,24 @@ const WEATHER_SOURCE_LABEL: Record<string, string> = {
 };
 
 export function App() {
-  const { sensors, alerts, weather, weatherStatus, weatherError, automaticFloods, automaticFloodError, offline, loading, updatedAt, refresh } = useMonitoring();
+  const {
+    sensors,
+    alerts,
+    weather,
+    weatherStatus,
+    weatherError,
+    automaticFloods,
+    automaticFloodError,
+    offline,
+    loading,
+    isRefreshing,
+    updatedAt,
+    liveDate,
+    secondsSinceLastUpdate,
+    liveTicker,
+    liveMetrics,
+    refresh,
+  } = useMonitoring();
   const situation = currentSituation(sensors, weather, offline || loading);
   const [tab, setTab] = useState<Tab>(readTab);
   const [session, setSession] = useState(loadSession);
@@ -83,6 +100,9 @@ export function App() {
   const [showSensors, setShowSensors] = useState(true);
   const [showWeather, setShowWeather] = useState(true);
   const [showAlerts, setShowAlerts] = useState(true);
+  const [weatherSearch, setWeatherSearch] = useState("");
+  const [weatherFilter, setWeatherFilter] = useState<"all" | "rain" | "alert">("all");
+  const [flyToTarget, setFlyToTarget] = useState<{ lat: number; lon: number; height?: number; timestamp?: number } | null>(null);
   const mapRef = useRef<MapHandle | null>(null);
 
   useEffect(() => {
@@ -148,6 +168,11 @@ export function App() {
         </nav>
 
         <div className="topbar-actions">
+          <span className="live-clock-pill" title="Horloge temps réel seconde par seconde (1 Hz)">
+            <span className="live-dot" />
+            <span>{liveDate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+            <small>· {secondsSinceLastUpdate === 0 ? "synchro" : `${secondsSinceLastUpdate}s`}</small>
+          </span>
           <span className="status-pill" style={{ borderColor: `${SITUATION_COLOR[situation.level]}66` }}>
             <i style={{ background: SITUATION_COLOR[situation.level] }} />
             <span>
@@ -156,7 +181,13 @@ export function App() {
                 : `Situation mesurée : ${SITUATION_LABEL[situation.level]}`}
             </span>
           </span>
-          <button type="button" className="icon-button" aria-label="Actualiser" title="Actualiser les données" onClick={() => void refresh()}>
+          <button
+            type="button"
+            className={`icon-button ${isRefreshing ? "spin-active" : ""}`}
+            aria-label="Actualiser"
+            title="Actualiser les données immédiatement"
+            onClick={() => void refresh()}
+          >
             <Icon name="refresh" size={17} />
           </button>
           {session ? (
@@ -206,6 +237,7 @@ export function App() {
                 simulation={floodRun}
                 automaticFloods={offline ? [] : automaticFloods?.events ?? []}
                 frameIndex={simulationFrame}
+                flyToTarget={flyToTarget}
               />
             </Suspense>
           )}
@@ -224,7 +256,9 @@ export function App() {
             mapRef={mapRef}
             token={session?.token}
             onPlaceSelect={(place) => {
-              setView("map");
+              setView("globe");
+              setTab("carte");
+              setFlyToTarget({ lat: place.lat, lon: place.lon, timestamp: Date.now() });
               mapRef.current?.setView([place.lat, place.lon], 13);
             }}
             onGlobePreload={() => { void loadGlobeView().catch(() => undefined); }}
@@ -274,6 +308,11 @@ export function App() {
                 updatedAt={updatedAt}
                 offline={offline}
                 loading={loading}
+                liveDate={liveDate}
+                secondsSinceLastUpdate={secondsSinceLastUpdate}
+                liveTicker={liveTicker}
+                isRefreshing={isRefreshing}
+                onRefreshWeather={() => void refresh()}
                 onSelectSensor={setSelectedSensor}
                 onShowSensors={() => setTab("capteurs")}
               />
@@ -328,64 +367,233 @@ export function App() {
               </section>
             )}
 
-            {tab === "meteo" && (
-              <section className="rail-panel" aria-labelledby="weather-heading">
-                <div className="rail-panel-head">
-                  <div><h2 id="weather-heading">Météo · observations et prévisions</h2><p>Mesures terrain, estimations météo courantes et prévisions distinguées</p></div>
-                  <span className="count-chip">{weather.length}</span>
-                </div>
-                {weatherError && <p className="err-msg" role="alert">{weatherError} Les valeurs précédentes ne sont pas effacées.</p>}
-                {weatherStatus && <ul className="weather-list source-status-list">
-                  {weatherStatus.providers.map((provider) => (
-                    <li key={provider.source}>
-                      <i style={{ background: !offline && provider.status === "current" ? "#35d39a" : !offline && provider.status === "stale" ? "#f5b942" : "#7f91a6" }} />
-                      <div><strong>{provider.source}</strong><p>{offline ? "Hors ligne · dernier état connu" : provider.status === "current" ? "Collecte récente" : provider.status === "stale" ? "Données anciennes" : provider.status === "disabled" ? "Désactivé / clé non configurée" : "Aucune donnée reçue"}</p><small>Dernière collecte : {fmt(provider.last_success_at)}</small></div>
-                    </li>
-                  ))}
-                </ul>}
-                {!weather.length && <p className="empty-note">{loading ? "Chargement des données météo…" : "Aucune observation météo disponible. Les bulletins et pluviomètres IoT restent utilisables même si un fournisseur est indisponible."}</p>}
-                <ul className="weather-list">
-                  {weather.map((item) => (
-                    <li key={`${item.source}-${item.name}`}>
-                      <i style={{ background: LEVEL_COLOR[item.observed_level ?? item.forecast_level ?? item.level] }} />
-                      <div>
-                        <strong>{item.name}</strong>
-                        <p>
-                          {offline
-                            ? "Dernière valeur connue (cache hors ligne)"
-                            : item.observed_precip_mm_h != null
-                              ? `${item.observed_precip_mm_h.toFixed(1)} mm/h rapportés`
-                              : item.modeled_precip_mm_h != null
-                                ? `${item.modeled_precip_mm_h.toFixed(1)} mm/h estimés maintenant par Open-Meteo`
-                                : "Aucune pluie actuelle rapportée"}
-                          {" · "}prévision max. à 3 h : {item.forecast_intensity_3h_mm_h ?? item.intensity_3h_mm_h} mm/h
-                          {" · "}{item.source_kind === "weather_model" ? "cumul modèle 24 h" : "cumul mesuré 24 h"} : {
-                            item.source_kind === "weather_model"
-                              ? item.modeled_24h_mm ?? 0
-                              : item.observed_24h_mm ?? 0
-                          } mm
-                        </p>
-                        <small>
-                          Niveau actuel : {offline
-                            ? "non disponible hors ligne"
-                            : item.observed_level
-                              ? LEVEL_LABEL[item.observed_level]
-                              : item.modeled_precip_mm_h != null
-                                ? `estimation ${LEVEL_LABEL[item.level]}`
-                                : "non déterminé"}
-                          {" · "}prévision : {LEVEL_LABEL[item.forecast_level ?? item.level]}
-                        </small>
-                        <small>
-                          {WEATHER_SOURCE_LABEL[item.source_kind ?? ""] ?? item.source} · {item.source}
-                          {" · "}donnée : {fmt(item.observed_at ?? item.modeled_at ?? null)}
-                          {" · "}collecte : {fmt(item.updated_at)}
-                        </small>
+            {tab === "meteo" && (() => {
+              const query = weatherSearch.trim().toLowerCase();
+              const filteredWeather = weather.filter((item) => {
+                if (query && !item.name.toLowerCase().includes(query) && !item.source.toLowerCase().includes(query)) {
+                  return false;
+                }
+                const intensity = item.observed_precip_mm_h ?? item.modeled_precip_mm_h ?? 0;
+                if (weatherFilter === "rain") {
+                  return intensity > 0;
+                }
+                if (weatherFilter === "alert") {
+                  const lvl = item.observed_level ?? item.forecast_level ?? item.level;
+                  return lvl === "orange" || lvl === "red";
+                }
+                return true;
+              });
+
+              return (
+                <section className="rail-panel weather-observatory-panel" aria-labelledby="weather-heading">
+                  <div className="rail-panel-head">
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <h2 id="weather-heading">Observatoire Météorologique</h2>
+                        <span className="live-pill-badge">
+                          <span className="live-dot" />
+                          <span>1 Hz CONTINU</span>
+                        </span>
                       </div>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
+                      <p>Surveillance hydrométéorologique haute précision · seconde par seconde</p>
+                    </div>
+                    <button
+                      type="button"
+                      className={`refresh-action-btn ${isRefreshing ? "spin-active" : ""}`}
+                      onClick={() => void refresh()}
+                      title="Forcer l'actualisation immédiate des données"
+                    >
+                      <Icon name="refresh" size={14} />
+                      <span>{isRefreshing ? "Actualisation…" : "Actualiser"}</span>
+                    </button>
+                  </div>
+
+                  {/* Télémétrie en temps réel · KPI Cards */}
+                  <div className="weather-kpi-grid">
+                    <div className="weather-kpi-card highlight">
+                      <div className="kpi-icon"><Icon name="droplet" size={18} /></div>
+                      <div className="kpi-body">
+                        <span className="kpi-value">{liveMetrics.instantaneousMaxMmH.toFixed(1)} <small>mm/h</small></span>
+                        <span className="kpi-label">Pic Instantané Max</span>
+                      </div>
+                    </div>
+                    <div className="weather-kpi-card">
+                      <div className="kpi-icon"><Icon name="activity" size={18} /></div>
+                      <div className="kpi-body">
+                        <span className="kpi-value">{liveMetrics.activeRainCount} <small>/ {weather.length}</small></span>
+                        <span className="kpi-label">Stations en Pluie</span>
+                      </div>
+                    </div>
+                    <div className="weather-kpi-card">
+                      <div className="kpi-icon"><Icon name="chart" size={18} /></div>
+                      <div className="kpi-body">
+                        <span className="kpi-value">{liveMetrics.totalEstimated24hMm.toFixed(0)} <small>mm</small></span>
+                        <span className="kpi-label">Cumul 24h National</span>
+                      </div>
+                    </div>
+                    <div className="weather-kpi-card">
+                      <div className="kpi-icon"><Icon name="clock" size={18} /></div>
+                      <div className="kpi-body">
+                        <span className="kpi-value">
+                          {liveDate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                        </span>
+                        <span className="kpi-label">Horloge (synchro {secondsSinceLastUpdate}s)</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {weatherError && <p className="err-msg" role="alert">{weatherError} Les valeurs précédentes ne sont pas effacées.</p>}
+
+                  {weatherStatus && (
+                    <div className="weather-sources-bar">
+                      <small className="sources-label">Sources en direct :</small>
+                      {weatherStatus.providers.map((provider) => (
+                        <span key={provider.source} className={`source-tag ${provider.status}`}>
+                          <i />
+                          <span>{provider.source}</span>
+                          <small>({provider.status === "current" ? "En ligne" : provider.status})</small>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Barre de recherche et filtres rapides */}
+                  <div className="weather-filter-bar">
+                    <div className="weather-search-input-wrap">
+                      <Icon name="search" size={15} />
+                      <input
+                        type="search"
+                        placeholder="Rechercher une station, commune…"
+                        value={weatherSearch}
+                        onChange={(e) => setWeatherSearch(e.target.value)}
+                        aria-label="Rechercher une station météo"
+                      />
+                      {weatherSearch && (
+                        <button type="button" className="clear-search-btn" onClick={() => setWeatherSearch("")}>
+                          <Icon name="close" size={12} />
+                        </button>
+                      )}
+                    </div>
+                    <div className="weather-filter-pills">
+                      <button
+                        type="button"
+                        className={`filter-pill ${weatherFilter === "all" ? "active" : ""}`}
+                        onClick={() => setWeatherFilter("all")}
+                      >
+                        Toutes ({weather.length})
+                      </button>
+                      <button
+                        type="button"
+                        className={`filter-pill ${weatherFilter === "rain" ? "active" : ""}`}
+                        onClick={() => setWeatherFilter("rain")}
+                      >
+                        En pluie ({liveMetrics.activeRainCount})
+                      </button>
+                      <button
+                        type="button"
+                        className={`filter-pill ${weatherFilter === "alert" ? "active" : ""}`}
+                        onClick={() => setWeatherFilter("alert")}
+                      >
+                        Vigilance
+                      </button>
+                    </div>
+                  </div>
+
+                  {!filteredWeather.length && (
+                    <p className="empty-note">
+                      {loading
+                        ? "Chargement des flux météo…"
+                        : weatherSearch
+                          ? `Aucune station météo ne correspond à « ${weatherSearch} ».`
+                          : "Aucune donnée disponible dans cette catégorie."}
+                    </p>
+                  )}
+
+                  <ul className="weather-cards-list">
+                    {filteredWeather.map((item) => {
+                      const intensity = item.observed_precip_mm_h ?? item.modeled_precip_mm_h ?? 0;
+                      const isObserved = item.observed_precip_mm_h != null;
+                      const gaugePercent = Math.min(100, Math.round((intensity / 40) * 100));
+                      const effectiveLevel = item.observed_level ?? item.forecast_level ?? item.level;
+
+                      return (
+                        <li key={`${item.source}-${item.name}`} className="weather-station-card">
+                          <div className="station-card-top">
+                            <div className="station-identity">
+                              <i className="level-dot" style={{ background: LEVEL_COLOR[effectiveLevel] }} />
+                              <div>
+                                <strong className="station-name">{item.name}</strong>
+                                <span className="station-coords">
+                                  {item.lat.toFixed(2)}°N, {item.lon.toFixed(2)}°W · {item.source}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="station-telemetry-badge">
+                              <span className="station-intensity">{intensity.toFixed(1)}</span>
+                              <span className="station-unit">mm/h</span>
+                            </div>
+                          </div>
+
+                          {/* Gauge bar de précipitation */}
+                          <div className="station-gauge-track" title={`Intensité : ${intensity.toFixed(1)} mm/h`}>
+                            <div
+                              className="station-gauge-fill"
+                              style={{
+                                width: `${Math.max(3, gaugePercent)}%`,
+                                background: intensity >= 30 ? "#ff4d4d" : intensity >= 10 ? "#f5b942" : "#37c6f4",
+                              }}
+                            />
+                          </div>
+
+                          <div className="station-stats-row">
+                            <div className="stat-col">
+                              <span className="stat-label">Mode</span>
+                              <span className="stat-val">{isObserved ? "Mesure IoT" : "Radar modèle"}</span>
+                            </div>
+                            <div className="stat-col">
+                              <span className="stat-label">Prévision +3h</span>
+                              <span className="stat-val">{item.forecast_intensity_3h_mm_h ?? item.intensity_3h_mm_h} mm/h</span>
+                            </div>
+                            <div className="stat-col">
+                              <span className="stat-label">Cumul 24h</span>
+                              <span className="stat-val">
+                                {item.source_kind === "weather_model" ? item.modeled_24h_mm ?? 0 : item.observed_24h_mm ?? 0} mm
+                              </span>
+                            </div>
+                            <div className="stat-col">
+                              <span className="stat-label">Vigilance</span>
+                              <span className="stat-val" style={{ color: LEVEL_COLOR[effectiveLevel] }}>
+                                {LEVEL_LABEL[effectiveLevel]}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="station-footer-row">
+                            <small className="update-time">
+                              Observé : {fmt(item.observed_at ?? item.modeled_at ?? item.updated_at)}
+                            </small>
+                            <button
+                              type="button"
+                              className="locate-map-btn"
+                              title="Localiser et survoler en 3D"
+                              onClick={() => {
+                                setView("globe");
+                                setTab("carte");
+                                setFlyToTarget({ lat: item.lat, lon: item.lon, timestamp: Date.now() });
+                                mapRef.current?.setView([item.lat, item.lon], 12);
+                              }}
+                            >
+                              <Icon name="globe" size={13} />
+                              <span>Localiser 3D</span>
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              );
+            })()}
 
             {tab === "observations" && (
               <ObservationsPanel token={session?.token} user={session?.user} />

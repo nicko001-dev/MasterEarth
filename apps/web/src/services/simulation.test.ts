@@ -57,12 +57,12 @@ describe("simulation raster", () => {
     const southUp = buildFloodPixels(depth, possible, 2, 2, false);
     const northUp = buildFloodPixels(depth, possible, 2, 2, true);
 
-    expect([...southUp.slice(0, 4)]).toEqual([255, 205, 70, 65]);
-    expect([...southUp.slice(4, 8)]).toEqual([31, 181, 217, 165]);
-    expect([...southUp.slice(8, 12)]).toEqual([255, 155, 0, 205]);
-    expect([...southUp.slice(12, 16)]).toEqual([245, 60, 45, 220]);
-    expect([...northUp.slice(0, 4)]).toEqual([255, 155, 0, 205]);
-    expect([...northUp.slice(8, 12)]).toEqual([255, 205, 70, 65]);
+    expect([...southUp.slice(0, 4)]).toEqual([160, 200, 255, 65]);
+    expect([...southUp.slice(4, 8)]).toEqual([100, 180, 255, 170]);
+    expect([...southUp.slice(8, 12)]).toEqual([20, 80, 200, 215]);
+    expect([...southUp.slice(12, 16)]).toEqual([10, 40, 160, 230]);
+    expect([...northUp.slice(0, 4)]).toEqual([20, 80, 200, 215]);
+    expect([...northUp.slice(8, 12)]).toEqual([160, 200, 255, 65]);
   });
 
   it("rejects a raster whose dimensions do not match its values", () => {

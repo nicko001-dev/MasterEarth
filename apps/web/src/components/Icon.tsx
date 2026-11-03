@@ -28,7 +28,11 @@ export type IconName =
   | "logout"
   | "chevron"
   | "mic"
-  | "mic-on";
+  | "mic-on"
+  | "volume"
+  | "volume-off"
+  | "sparkles"
+  | "activity";
 
 const paths: Record<IconName, string[]> = {
   map: ["M3 6.5 9 3l6 3.5L21 3v14.5L15 21l-6-3.5L3 21V6.5Z", "M9 3v14.5M15 6.5V21"],
@@ -59,6 +63,10 @@ const paths: Record<IconName, string[]> = {
   chevron: ["m9 6 6 6-6 6"],
   mic: ["M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z", "M19 10v2a7 7 0 0 1-14 0v-2"],
   "mic-on": ["M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z", "M19 10v2a7 7 0 0 1-14 0v-2", "M12 19a3 3 0 0 1-3-3h6a3 3 0 0 1-3 3Z"],
+  volume: ["M11 5L6 9H2v6h4l5 4V5Z", "M15.54 8.46a5 5 0 0 1 0 7.07", "M19.07 4.93a10 10 0 0 1 0 14.14"],
+  "volume-off": ["M11 5L6 9H2v6h4l5 4V5Z", "M23 9l-6 6", "M17 9l6 6"],
+  sparkles: ["M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3Z", "M19 17l.8 1.8 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8.8-1.8Z"],
+  activity: ["M22 12h-4l-3 9L9 3l-3 9H2"],
 };
 
 export function Icon({ name, size = 18, ...rest }: { name: IconName; size?: number } & Omit<SVGProps<SVGSVGElement>, "name">) {
