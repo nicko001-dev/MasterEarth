@@ -1,12 +1,12 @@
-# IntelliFlood — Guide de Qualité, Tests et Outillage (M0.4)
+# MasterEarth — Guide de Qualité, Tests et Outillage (M0.4)
 
-Ce document formalise les outils de qualité, les procédures de test, le lintage, le typage et la validation pour le projet **IntelliFlood** dans le cadre du jalon **M0.4**.
+Ce document formalise les outils de qualité, les procédures de test, le lintage, le typage et la validation pour le projet **MasterEarth** dans le cadre du jalon **M0.4**.
 
 ---
 
 ## 1. Vue d'ensemble des outils de qualité
 
-IntelliFlood privilégie des outils de qualité robustes, gratuits, open source et exécutables localement :
+MasterEarth privilégie des outils de qualité robustes, gratuits, open source et exécutables localement :
 
 - **Backend (Python 3.11+)** :
   - **Pytest** : Suite de tests unitaires et d'intégration (`pytest`).
@@ -75,7 +75,7 @@ Avant de valider ou de préparer une livraison, l'équipe doit exécuter l'inté
 2. Lancer la vérification de type TypeScript sur le frontend (`apps/web`).
 3. Lancer le build de production frontend (`apps/web`).
 4. Vérifier les endpoints techniques :
-   - `GET /health` (doit retourner `{ "status": "ok", "service": "IntelliFlood API" }`)
+   - `GET /health` (doit retourner `{ "status": "ok", "service": "MasterEarth API" }`)
    - `GET /api/v1` (doit retourner les métadonnées techniques et l'environnement)
 
 ---

@@ -1,4 +1,4 @@
-/** Links that open IntelliFlood World at a view. */
+/** Links that open MasterEarth World at a view. */
 
 import { VIEW_PROPERTIES, createView, viewUrl } from '../../view/index.js';
 import { defineTool, ToolError } from '../catalog.js';
@@ -106,10 +106,10 @@ function appBase(services) {
 
 export const showInGodsEyeView = defineTool({
   name: 'show_in_gods_eye_view',
-  title: "Show in IntelliFlood World",
+  title: "Show in MasterEarth World",
   description:
-    "Shows a view in IntelliFlood World: in clients that display apps, the live " +
-    "IntelliFlood World globe in the conversation; everywhere, a link that opens " +
+    "Shows a view in MasterEarth World: in clients that display apps, the live " +
+    "MasterEarth World globe in the conversation; everywhere, a link that opens " +
     'it. Pass the view another answer returned, or describe one: an area ' +
     'framed from above or a camera position, with chosen data layers, visual ' +
     'style and map, optionally following an aircraft (or riding in its ' +
@@ -130,7 +130,7 @@ export const showInGodsEyeView = defineTool({
     });
     const url = viewUrl(base, view);
     return {
-      summary: `Open ${label} in IntelliFlood World: ${url}`,
+      summary: `Open ${label} in MasterEarth World: ${url}`,
       data: { url, view },
     };
   },

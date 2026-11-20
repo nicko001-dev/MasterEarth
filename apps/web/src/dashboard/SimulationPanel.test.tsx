@@ -69,3 +69,30 @@ it("explains when a connected low terrain cell exceeds the requested source rise
     expect.objectContaining({ mode: "level", rise_m: 1.5 }),
   );
 });
+
+it("préremplit le scénario et les coordonnées demandés par l'assistant sans lancer de calcul", () => {
+  const handled = vi.fn();
+  render(
+    <SimulationPanel
+      position="left"
+      token="viewer-session"
+      sensors={[]}
+      run={null}
+      frameIndex={0}
+      request={{ mode: "level", lat: 48.8566, lon: 2.3522, timestamp: 1 }}
+      onLogin={() => {}}
+      onRunChange={() => {}}
+      onFrameChange={() => {}}
+      onRequestHandled={handled}
+    />,
+  );
+
+  const toggle = screen.getByRole("button", { name: /Simulation pluie et inondation/ });
+  if (toggle.getAttribute("aria-expanded") === "false") fireEvent.click(toggle);
+
+  expect(screen.getByLabelText("Scénario")).toHaveValue("level");
+  expect(screen.getByLabelText("Latitude")).toHaveValue(48.8566);
+  expect(screen.getByLabelText("Longitude")).toHaveValue(2.3522);
+  expect(handled).toHaveBeenCalledTimes(1);
+  expect(runFloodSimulation).not.toHaveBeenCalled();
+});

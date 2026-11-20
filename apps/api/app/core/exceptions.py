@@ -1,4 +1,4 @@
-"""Domain and application exceptions for IntelliFlood.
+"""Domain and application exceptions for MasterEarth.
 
 These exceptions are framework-agnostic (pure Python) and do not depend
 on FastAPI, Starlette, or SQLAlchemy.

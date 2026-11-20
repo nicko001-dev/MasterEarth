@@ -21,7 +21,7 @@ def test_default_settings(monkeypatch) -> None:
         monkeypatch.delenv(env_var, raising=False)
 
     settings = Settings(_env_file=None)
-    assert settings.app_name == "IntelliFlood API"
+    assert settings.app_name == "MasterEarth API"
     assert settings.api_version == "0.1.0"
     assert settings.app_env == "development"
     assert settings.api_host == "127.0.0.1"
@@ -38,7 +38,7 @@ def test_default_settings(monkeypatch) -> None:
 
 
 def test_custom_settings_via_env(monkeypatch) -> None:
-    monkeypatch.setenv("APP_NAME", "IntelliFlood CI")
+    monkeypatch.setenv("APP_NAME", "MasterEarth CI")
     monkeypatch.setenv("API_VERSION", "0.2.0-beta")
     monkeypatch.setenv("APP_ENV", "staging")
     monkeypatch.setenv("API_HOST", "0.0.0.0")
@@ -46,7 +46,7 @@ def test_custom_settings_via_env(monkeypatch) -> None:
     monkeypatch.setenv("API_DEBUG", "true")
 
     settings = Settings(_env_file=None)
-    assert settings.app_name == "IntelliFlood CI"
+    assert settings.app_name == "MasterEarth CI"
     assert settings.api_version == "0.2.0-beta"
     assert settings.app_env == "staging"
     assert settings.api_host == "0.0.0.0"

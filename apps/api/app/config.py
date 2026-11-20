@@ -1,4 +1,4 @@
-"""Environment configuration for the IntelliFlood backend.
+"""Environment configuration for the MasterEarth backend.
 
 Settings are loaded from environment variables and, when present, a local
 ``.env`` file. Nothing sensitive is hardcoded; safe local defaults are
@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     """
 
     # Application
-    app_name: str = "IntelliFlood API"
+    app_name: str = "MasterEarth API"
     api_version: str = "0.1.0"
     app_env: str = "development"
 

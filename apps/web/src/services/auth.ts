@@ -19,7 +19,7 @@ const RANK: Record<Role | LegacyRole, number> = {
 } as const;
 
 export const NETWORK_ERROR_MESSAGE =
-  "Serveur IntelliFlood injoignable. Vérifiez votre connexion réseau, puis réessayez.";
+  "Serveur MasterEarth injoignable. Vérifiez votre connexion réseau, puis réessayez.";
 
 /** Convertit les erreurs de transport en message compréhensible (jamais « Failed to fetch »). */
 export function friendlyError(error: unknown, fallback = "Opération impossible pour le moment."): Error {

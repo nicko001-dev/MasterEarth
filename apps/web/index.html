@@ -1,1329 +1,1024 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
-    <title>IntelliFlood — Prévenir · Alerter · Gérer les inondations en Côte d'Ivoire</title>
-    <meta name="description" content="IntelliFlood : plateforme de prévention, d'alerte et de gestion des risques d'inondation en Côte d'Ivoire.">
-    <meta name="theme-color" content="#0b3a5c">
-    <link rel="manifest" href="/manifest.webmanifest">
-    <link rel="apple-touch-icon" href="/icons/icon-192.png">
-    <!-- Three.js et Utilitaires -->
-    <script src="/vendor/three.min.js"></script>
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+  <title>MasterEarth — Veiller sur la Terre, anticiper chaque risque</title>
+  <meta name="description" content="MasterEarth est une plateforme mondiale de surveillance des catastrophes naturelles en temps réel : séismes, tsunamis, volcans, cyclones, inondations, feux, sécheresses et plus encore. Données réelles, simulations 3D, carte et globe.">
+  <meta name="theme-color" content="#030b18">
+  <meta property="og:title" content="MasterEarth — Veiller sur la Terre">
+  <meta property="og:description" content="Surveillance mondiale en temps réel des risques naturels, simulations 3D et données terrestres réelles.">
+  <meta property="og:type" content="website">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --night: #030b18;
+      --night-2: #06152a;
+      --panel: rgba(5, 18, 35, 0.72);
+      --panel-strong: rgba(6, 22, 42, 0.9);
+      --line: rgba(83, 189, 255, 0.2);
+      --line-strong: rgba(83, 189, 255, 0.45);
+      --ice: #e7f5ff;
+      --muted: #8ea9bf;
+      --cyan: #26c8ff;
+      --blue: #2f7dff;
+      --green: #39e58c;
+      --amber: #ffb547;
+      --red: #ff5a5f;
+      --violet: #c06bff;
+      --radius: 18px;
+      --wrap: 1240px;
+    }
 
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            user-select: none;
-        }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      min-height: 100vh;
+      background: var(--night);
+      color: var(--ice);
+      font-family: "Space Grotesk", system-ui, sans-serif;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; }
+    img, video { display: block; max-width: 100%; }
+    :focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
 
-        body {
-            background-color: #02070d;
-            color: #d1e4f0;
-            font-family: 'Space Grotesk', sans-serif;
-            overflow-x: hidden;
-            scrollbar-width: thin;
-            scrollbar-color: #00d2ff #02070d;
-        }
+    /* ---------- Fond vidéo ---------- */
+    .hero {
+      position: relative;
+      min-height: 100svh;
+      display: flex;
+      flex-direction: column;
+      isolation: isolate;
+      overflow: hidden;
+    }
+    .hero-video,
+    .hero-fallback {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -3;
+    }
+    .hero-video { object-fit: cover; object-position: center; }
+    .hero-fallback {
+      background:
+        radial-gradient(ellipse at 68% 20%, rgba(38, 200, 255, 0.22), transparent 44%),
+        radial-gradient(ellipse at 20% 75%, rgba(47, 125, 255, 0.18), transparent 48%),
+        linear-gradient(145deg, #041020 0%, #02070f 55%, #051426 100%);
+      z-index: -4;
+    }
+    .hero-shade {
+      position: absolute;
+      inset: 0;
+      z-index: -2;
+      background:
+        linear-gradient(90deg, rgba(2, 7, 15, 0.94) 0%, rgba(2, 8, 18, 0.76) 38%, rgba(2, 8, 18, 0.18) 70%, rgba(2, 8, 18, 0.42) 100%),
+        linear-gradient(180deg, rgba(2, 7, 15, 0.5) 0%, transparent 22%, transparent 70%, var(--night) 100%);
+      pointer-events: none;
+    }
+    .hero-grid {
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      opacity: 0.25;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(83, 189, 255, 0.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(83, 189, 255, 0.07) 1px, transparent 1px);
+      background-size: 72px 72px;
+      mask-image: radial-gradient(ellipse at 55% 40%, #000 10%, transparent 68%);
+    }
 
-        body::-webkit-scrollbar {
-            width: 6px;
-        }
-        body::-webkit-scrollbar-track {
-            background: #02070d;
-        }
-        body::-webkit-scrollbar-thumb {
-            background: #00e1ff;
-            border-radius: 3px;
-        }
+    /* ---------- Navigation ---------- */
+    .topbar {
+      width: min(var(--wrap), calc(100% - 48px));
+      margin: 0 auto;
+      padding: 22px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      position: relative;
+      z-index: 20;
+    }
+    .brand { display: inline-flex; align-items: center; gap: 13px; min-width: 0; }
+    .brand img {
+      width: 54px;
+      height: 54px;
+      border-radius: 14px;
+      box-shadow: 0 0 0 1px rgba(83, 189, 255, 0.32), 0 10px 34px rgba(0, 0, 0, 0.45);
+    }
+    .brand-copy strong {
+      display: block;
+      font-size: 1.35rem;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+    .brand-copy strong span { color: var(--cyan); }
+    .brand-copy small {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 0.66rem;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(4, 16, 31, 0.55);
+      backdrop-filter: blur(18px);
+    }
+    .nav-links a {
+      padding: 10px 16px;
+      border-radius: 999px;
+      color: #b9d3e6;
+      font-size: 0.83rem;
+      letter-spacing: 0.02em;
+      transition: background 0.2s, color 0.2s;
+      white-space: nowrap;
+    }
+    .nav-links a:hover { color: #fff; background: rgba(38, 200, 255, 0.12); }
+    .top-actions { display: flex; align-items: center; gap: 12px; }
+    .pill-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 10px 15px;
+      border: 1px solid rgba(57, 229, 140, 0.28);
+      border-radius: 999px;
+      color: #b7f5d3;
+      background: rgba(6, 28, 24, 0.5);
+      font-size: 0.74rem;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 4px rgba(57, 229, 140, 0.13), 0 0 14px var(--green);
+      animation: blink 2.4s ease-in-out infinite;
+    }
+    .dot.warn { background: var(--amber); box-shadow: 0 0 0 4px rgba(255, 181, 71, 0.13), 0 0 14px var(--amber); }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 
-        #webgl-canvas {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 1;
-            pointer-events: none;
-        }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 50px;
+      padding: 0 24px;
+      border: 0;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #27c9ff, #2f7dff);
+      color: #02101d;
+      font-weight: 700;
+      font-size: 0.87rem;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      box-shadow: 0 14px 40px rgba(38, 200, 255, 0.24);
+      transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 20px 48px rgba(38, 200, 255, 0.33); }
+    .btn.secondary {
+      background: rgba(6, 22, 42, 0.72);
+      color: var(--ice);
+      border: 1px solid var(--line-strong);
+      box-shadow: none;
+      backdrop-filter: blur(12px);
+    }
+    .btn.secondary:hover { background: rgba(10, 34, 62, 0.9); }
+    .btn.small { min-height: 42px; padding: 0 18px; font-size: 0.79rem; border-radius: 10px; }
 
-        /* Vignettage cinématographique & grain de pluie */
-        .vignette {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 2;
-            pointer-events: none;
-            background: radial-gradient(circle at center, transparent 40%, rgba(2, 8, 16, 0.85) 100%);
-            box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.8);
-        }
+    /* ---------- Hero ---------- */
+    .hero-main {
+      width: min(var(--wrap), calc(100% - 48px));
+      margin: auto;
+      padding: 42px 0 84px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr);
+      gap: 56px;
+      align-items: center;
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
+      padding: 8px 13px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(5, 20, 38, 0.6);
+      color: #9adcff;
+      font-size: 0.72rem;
+      letter-spacing: 0.17em;
+      text-transform: uppercase;
+      backdrop-filter: blur(12px);
+    }
+    .eyebrow::before {
+      content: "";
+      width: 26px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--cyan));
+    }
+    h1 {
+      font-size: clamp(2.8rem, 6.2vw, 5.6rem);
+      line-height: 0.98;
+      letter-spacing: -0.055em;
+      font-weight: 600;
+      max-width: 12ch;
+    }
+    h1 .accent {
+      color: transparent;
+      background: linear-gradient(100deg, #6fe3ff 0%, #2f7dff 58%, #b06bff 100%);
+      background-clip: text;
+      -webkit-background-clip: text;
+    }
+    .hero-lead {
+      margin-top: 26px;
+      max-width: 58ch;
+      color: #b5cadd;
+      line-height: 1.72;
+      font-size: clamp(0.98rem, 1.4vw, 1.12rem);
+    }
+    .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 34px; }
+    .hero-note {
+      margin-top: 18px;
+      max-width: 62ch;
+      color: #7190a8;
+      font-size: 0.75rem;
+      line-height: 1.6;
+    }
+    .hero-stats {
+      display: flex;
+      gap: 30px;
+      flex-wrap: wrap;
+      margin-top: 38px;
+      padding-top: 24px;
+      border-top: 1px solid rgba(126, 173, 208, 0.16);
+    }
+    .hero-stat strong { display: block; font-size: 1.5rem; letter-spacing: -0.03em; }
+    .hero-stat span { display: block; margin-top: 4px; color: var(--muted); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; }
 
-        /* Flash d'éclairs */
-        #lightning-flash {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: rgba(220, 240, 255, 0.95);
-            z-index: 3;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.05s ease-out;
-        }
+    /* Panneau temps réel */
+    .live-card {
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 22px;
+      background:
+        radial-gradient(circle at 90% 0%, rgba(38, 200, 255, 0.12), transparent 48%),
+        var(--panel);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 28px 70px rgba(0, 0, 0, 0.45);
+      overflow: hidden;
+    }
+    .live-card::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(111, 227, 255, 0.7), transparent);
+    }
+    .live-card-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+    .live-card-head h2 { font-size: 0.98rem; font-weight: 500; letter-spacing: 0.02em; }
+    .live-card-head span { color: var(--muted); font-size: 0.7rem; }
+    .hazard-counts {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 9px;
+      margin-top: 18px;
+    }
+    .hazard-count {
+      padding: 12px 11px;
+      border: 1px solid rgba(126, 173, 208, 0.14);
+      border-radius: 12px;
+      background: rgba(3, 13, 26, 0.52);
+    }
+    .hazard-count b { display: block; font-size: 1.3rem; letter-spacing: -0.02em; line-height: 1; }
+    .hazard-count span { display: block; margin-top: 6px; color: var(--muted); font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; }
+    .event-ticker {
+      margin-top: 18px;
+      border-top: 1px solid rgba(126, 173, 208, 0.14);
+      padding-top: 15px;
+    }
+    .event-ticker h3 { font-size: 0.67rem; text-transform: uppercase; letter-spacing: 0.16em; color: #7ea3bd; margin-bottom: 10px; }
+    .event-line {
+      display: grid;
+      grid-template-columns: 8px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: start;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(126, 173, 208, 0.08);
+      font-size: 0.78rem;
+    }
+    .event-line:last-child { border-bottom: 0; }
+    .event-line i { width: 7px; height: 7px; margin-top: 5px; border-radius: 50%; }
+    .event-line strong { display: block; font-weight: 500; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .event-line small { color: #7c9ab1; font-size: 0.68rem; }
+    .event-line time { color: #7c9ab1; font-size: 0.66rem; white-space: nowrap; padding-top: 3px; }
+    .live-foot {
+      margin-top: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: #6f8ea6;
+      font-size: 0.64rem;
+      line-height: 1.5;
+    }
+    .live-foot a { color: #9adcff; }
+    .skeleton { color: #6f8ea6; font-size: 0.76rem; padding: 12px 0; }
 
-        /* Interface HUD */
-        .hud {
-            position: fixed;
-            z-index: 10;
-            pointer-events: auto;
-        }
+    /* Bandeau de sources */
+    .source-strip {
+      position: relative;
+      border-top: 1px solid rgba(126, 173, 208, 0.13);
+      border-bottom: 1px solid rgba(126, 173, 208, 0.13);
+      background: rgba(3, 13, 26, 0.72);
+      backdrop-filter: blur(14px);
+    }
+    .source-strip-inner {
+      width: min(var(--wrap), calc(100% - 48px));
+      margin: 0 auto;
+      padding: 15px 0;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      overflow: hidden;
+    }
+    .source-strip b { flex: none; font-size: 0.64rem; letter-spacing: 0.16em; text-transform: uppercase; color: #6f8ea6; }
+    .source-list { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; color: #93aec2; font-size: 0.76rem; }
+    .source-list span { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+    .source-list i { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+    .source-list span.off i { background: #ff7b7b; }
+    .source-list span.pending i { background: var(--amber); }
 
-        header.top-bar {
-            top: calc(2rem + env(safe-area-inset-top, 0px));
-            left: 3rem;
-            right: 3rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+    /* ---------- Sections ---------- */
+    section.block { padding: 96px 0; position: relative; }
+    .wrap { width: min(var(--wrap), calc(100% - 48px)); margin: 0 auto; }
+    .section-head { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: 40px; align-items: end; margin-bottom: 42px; }
+    .kicker { color: var(--cyan); font-size: 0.7rem; letter-spacing: 0.22em; text-transform: uppercase; margin-bottom: 14px; }
+    h2 { font-size: clamp(1.9rem, 3.4vw, 3.1rem); line-height: 1.06; letter-spacing: -0.04em; font-weight: 500; }
+    .section-head p { color: #9bb3c7; line-height: 1.7; font-size: 0.96rem; max-width: 58ch; }
 
-        .logo {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 1.4rem;
-            font-weight: 700;
-            letter-spacing: 0.3em;
-            color: #ffffff;
-            text-shadow: 0 0 15px rgba(0, 225, 255, 0.6);
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
+    .hazard-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .hazard-card {
+      position: relative;
+      padding: 22px 20px 20px;
+      border: 1px solid rgba(126, 173, 208, 0.14);
+      border-radius: var(--radius);
+      background: linear-gradient(160deg, rgba(9, 28, 51, 0.62), rgba(4, 14, 27, 0.5));
+      overflow: hidden;
+      transition: border-color 0.25s, transform 0.25s, background 0.25s;
+    }
+    .hazard-card:hover { transform: translateY(-4px); border-color: var(--line-strong); background: linear-gradient(160deg, rgba(12, 38, 68, 0.8), rgba(5, 17, 32, 0.7)); }
+    .hazard-card::after {
+      content: "";
+      position: absolute;
+      width: 86px;
+      height: 86px;
+      right: -22px;
+      top: -22px;
+      border-radius: 50%;
+      background: var(--tone, var(--cyan));
+      opacity: 0.12;
+      filter: blur(18px);
+    }
+    .hazard-glyph {
+      width: 46px;
+      height: 46px;
+      display: grid;
+      place-items: center;
+      border-radius: 13px;
+      border: 1px solid color-mix(in srgb, var(--tone, var(--cyan)) 40%, transparent);
+      background: color-mix(in srgb, var(--tone, var(--cyan)) 12%, transparent);
+      color: var(--tone, var(--cyan));
+      font-size: 1.35rem;
+    }
+    .hazard-card h3 { margin-top: 16px; font-size: 1rem; font-weight: 600; }
+    .hazard-card p { margin-top: 7px; color: #849fb4; font-size: 0.79rem; line-height: 1.55; }
+    .hazard-card .count {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      margin-top: 14px;
+      font-size: 0.68rem;
+      color: #7f9bb1;
+    }
+    .hazard-card .count b { color: var(--tone, var(--cyan)); font-size: 0.9rem; }
 
-        .logo-dot {
-            width: 10px;
-            height: 10px;
-            background: #00d2ff;
-            border-radius: 50%;
-            box-shadow: 0 0 10px #00d2ff;
-            animation: pulse 2s infinite ease-in-out;
-        }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .step-card {
+      padding: 28px 26px;
+      border-radius: var(--radius);
+      border: 1px solid rgba(126, 173, 208, 0.14);
+      background: rgba(5, 18, 35, 0.55);
+    }
+    .step-num {
+      font-size: 0.68rem;
+      letter-spacing: 0.2em;
+      color: var(--cyan);
+    }
+    .step-card h3 { margin-top: 14px; font-size: 1.18rem; font-weight: 500; }
+    .step-card p { margin-top: 10px; color: #8fa9be; font-size: 0.84rem; line-height: 1.65; }
 
-        @keyframes pulse {
-            0%, 100% { opacity: 0.3; transform: scale(0.9); }
-            50% { opacity: 1; transform: scale(1.2); }
-        }
+    .sources-panel {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+      gap: 28px;
+      align-items: start;
+    }
+    .source-rows { display: grid; gap: 10px; }
+    .source-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+      padding: 15px 17px;
+      border: 1px solid rgba(126, 173, 208, 0.13);
+      border-radius: 12px;
+      background: rgba(4, 15, 29, 0.55);
+    }
+    .source-row strong { display: block; font-size: 0.85rem; font-weight: 500; }
+    .source-row small { display: block; margin-top: 4px; color: #7896ad; font-size: 0.7rem; line-height: 1.45; }
+    .source-status { font-size: 0.66rem; letter-spacing: 0.08em; padding: 6px 9px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+    .source-status.ok { color: #8af0bd; border-color: rgba(57, 229, 140, 0.3); background: rgba(57, 229, 140, 0.08); }
+    .source-status.fail { color: #ffb3b3; border-color: rgba(255, 90, 95, 0.3); background: rgba(255, 90, 95, 0.08); }
+    .source-status.unknown { color: #ffd08a; border-color: rgba(255, 181, 71, 0.3); background: rgba(255, 181, 71, 0.08); }
 
-        .telemetry {
-            background: rgba(4, 15, 28, 0.7);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(0, 225, 255, 0.2);
-            padding: 10px 24px;
-            border-radius: 40px;
-            font-size: 0.85rem;
-            letter-spacing: 0.15em;
-            color: #79a5c4;
-            display: flex;
-            gap: 24px;
-        }
+    .principle-card {
+      padding: 30px;
+      border-radius: 20px;
+      border: 1px solid rgba(126, 173, 208, 0.14);
+      background:
+        radial-gradient(circle at 100% 0%, rgba(192, 107, 255, 0.1), transparent 48%),
+        rgba(5, 18, 35, 0.6);
+    }
+    .principle-card h3 { font-size: 1.25rem; font-weight: 500; }
+    .principle-card p { margin-top: 12px; color: #93adc1; font-size: 0.87rem; line-height: 1.7; }
+    .principle-card ul { list-style: none; display: grid; gap: 11px; margin-top: 18px; }
+    .principle-card li { display: grid; grid-template-columns: 22px 1fr; gap: 9px; color: #9db6c9; font-size: 0.82rem; line-height: 1.55; }
+    .principle-card li::before { content: "✓"; color: var(--green); font-weight: 700; }
 
-        .telemetry span b {
-            color: #00e1ff;
-            font-weight: 600;
-        }
+    .cta-band {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line-strong);
+      border-radius: 24px;
+      padding: 52px;
+      background:
+        radial-gradient(circle at 85% 20%, rgba(38, 200, 255, 0.18), transparent 40%),
+        linear-gradient(135deg, rgba(9, 34, 62, 0.95), rgba(4, 14, 27, 0.95));
+    }
+    .cta-band::after {
+      content: "";
+      position: absolute;
+      right: -100px;
+      bottom: -180px;
+      width: 480px;
+      height: 480px;
+      border-radius: 50%;
+      border: 1px solid rgba(83, 189, 255, 0.22);
+      box-shadow: 0 0 0 40px rgba(83, 189, 255, 0.04), 0 0 0 90px rgba(83, 189, 255, 0.025);
+    }
+    .cta-band h2 { max-width: 18ch; }
+    .cta-band p { margin-top: 16px; max-width: 58ch; color: #a5bfd3; line-height: 1.7; }
+    .cta-band .hero-actions { margin-top: 28px; }
 
-        /* Scrollytelling Panels */
-        .scroll-container {
-            position: relative;
-            z-index: 5;
-            width: 100%;
-        }
+    footer {
+      padding: 48px 0 34px;
+      border-top: 1px solid rgba(126, 173, 208, 0.12);
+      background: #020812;
+    }
+    .footer-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 36px; }
+    .footer-brand { display: flex; gap: 13px; align-items: flex-start; }
+    .footer-brand img { width: 46px; height: 46px; border-radius: 12px; }
+    .footer-brand p { margin-top: 8px; max-width: 38ch; color: #7794aa; font-size: 0.76rem; line-height: 1.65; }
+    .footer-col h3 { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.16em; color: #8ca9be; margin-bottom: 13px; }
+    .footer-col a { display: block; padding: 5px 0; color: #8aa4b8; font-size: 0.8rem; }
+    .footer-col a:hover { color: #c7e9ff; }
+    .footer-bottom {
+      margin-top: 34px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(126, 173, 208, 0.1);
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      flex-wrap: wrap;
+      color: #617e93;
+      font-size: 0.7rem;
+      line-height: 1.6;
+    }
 
-        section.step {
-            height: 150vh;
-            display: flex;
-            align-items: center;
-            padding: 0 10vw;
-            pointer-events: none;
-        }
+    .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.7s ease, transform 0.7s ease; }
+    .reveal.visible { opacity: 1; transform: none; }
 
-        .step-content {
-            max-width: 580px;
-            background: rgba(3, 12, 22, 0.65);
-            backdrop-filter: blur(16px);
-            padding: 3rem;
-            border-radius: 8px;
-            border-left: 2px solid #00d2ff;
-            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.7), inset 0 0 20px rgba(0, 210, 255, 0.05);
-            pointer-events: auto;
-            transform: translateY(30px);
-            opacity: 0;
-            transition: all 0.9s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        .step-content.active {
-            transform: translateY(0);
-            opacity: 1;
-        }
-
-        .step.right {
-            justify-content: flex-end;
-        }
-        .step.right .step-content {
-            border-left: none;
-            border-right: 2px solid #f28c28;
-        }
-
-        .step-tag {
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.3em;
-            color: #00d2ff;
-            margin-bottom: 0.8rem;
-            display: inline-block;
-        }
-
-        .step.right .step-tag {
-            color: #ffa24d;
-        }
-
-        .step-title {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 2.5rem;
-            color: #ffffff;
-            margin-bottom: 1.2rem;
-            line-height: 1.15;
-            letter-spacing: 0.05em;
-        }
-
-        .step-desc {
-            font-size: 1rem;
-            line-height: 1.7;
-            color: #9cbacf;
-            margin-bottom: 1.8rem;
-        }
-
-        .data-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            padding-top: 15px;
-        }
-
-        .data-item h4 {
-            font-size: 0.75rem;
-            color: #5d7e96;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-        }
-
-        .data-item p {
-            font-size: 1.25rem;
-            color: #e3f3ff;
-            font-weight: 600;
-        }
-
-        /* Jauge de submersion latérale */
-        .flood-gauge {
-            position: fixed;
-            right: 3rem;
-            top: 50%;
-            transform: translateY(-50%);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
-            z-index: 10;
-        }
-
-        .gauge-bar-bg {
-            width: 4px;
-            height: 220px;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 2px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .gauge-bar-fill {
-            position: absolute;
-            bottom: 0;
-            width: 100%;
-            height: 0%;
-            background: linear-gradient(to top, #00d2ff, #ff3366);
-            box-shadow: 0 0 12px #00d2ff;
-            transition: height 0.2s ease-out;
-        }
-
-        .gauge-label {
-            writing-mode: vertical-lr;
-            transform: rotate(180deg);
-            font-size: 0.65rem;
-            letter-spacing: 0.25em;
-            text-transform: uppercase;
-            color: #79a5c4;
-        }
-
-        /* Indicateur de Scroll */
-        .scroll-indicator {
-            position: fixed;
-            bottom: 2.5rem;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-            z-index: 10;
-            opacity: 0.7;
-            transition: opacity 0.5s;
-        }
-
-        .mouse-icon {
-            width: 22px;
-            height: 36px;
-            border: 2px solid #00d2ff;
-            border-radius: 12px;
-            position: relative;
-        }
-
-        .mouse-wheel {
-            width: 4px;
-            height: 7px;
-            background: #00d2ff;
-            border-radius: 2px;
-            position: absolute;
-            top: 6px;
-            left: 50%;
-            transform: translateX(-50%);
-            animation: mouse-scroll 1.6s infinite ease-out;
-        }
-
-        @keyframes mouse-scroll {
-            0% { transform: translate(-50%, 0); opacity: 1; }
-            100% { transform: translate(-50%, 14px); opacity: 0; }
-        }
-
-        .scroll-text {
-            font-size: 0.7rem;
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
-            color: #8da9be;
-        }
-
-        body.grabbing, body.grabbing * { cursor: grabbing !important; }
-        body { cursor: grab; }
-        .step-content { cursor: auto; }
-        .look-hint {
-            position: fixed; left: 3rem; bottom: calc(1.1rem + env(safe-area-inset-bottom, 0px));
-            z-index: 10; display: flex; align-items: center; gap: 10px;
-            background: rgba(4, 15, 28, 0.7); backdrop-filter: blur(12px);
-            border: 1px solid rgba(0, 225, 255, 0.2); border-radius: 40px;
-            padding: 10px 18px; font-size: 0.75rem; letter-spacing: 0.12em;
-            color: #9cbacf; transition: opacity 0.6s; pointer-events: auto;
-        }
-        .look-hint kbd { font-family: inherit; color: #00e1ff; border: 1px solid rgba(0,225,255,.4); border-radius: 4px; padding: 1px 6px; }
-        .look-hint button { all: unset; cursor: pointer; color: #00e1ff; min-height: 44px; display: inline-flex; align-items: center; padding: 0 6px; }
-        .look-hint button:focus-visible { outline: 2px solid #00e1ff; outline-offset: 2px; border-radius: 6px; }
-        @media (pointer: coarse) { .look-hint { display: none; } }
-        @media (max-width: 768px) {
-            header.top-bar { left: 1.5rem; right: 1.5rem; top: 1rem; flex-direction: column; gap: 10px; }
-            .step-content { padding: 1.8rem; }
-            .step-title { font-size: 1.8rem; }
-            .flood-gauge { display: none; }
-        }
-            body.locked { overflow: hidden; }
-        section.step[data-step="0"] { padding-bottom: 22vh; }
-        #intro { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(2,7,13,.55); backdrop-filter: blur(10px); transition: opacity .9s; }
-        #intro.hide { opacity: 0; pointer-events: none; }
-        .intro-card { max-width: 540px; text-align: center; padding: 2rem; }
-        .intro-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-        .btn { all: unset; cursor: pointer; min-height: 48px; padding: 0 28px; display: inline-flex; align-items: center; border-radius: 40px; background: #00d2ff; color: #02070d; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; font-size: .8rem; transition: transform .2s, box-shadow .2s; }
-        .btn.ghost { background: transparent; color: #00e1ff; border: 1px solid rgba(0,225,255,.5); }
-        .btn:hover { transform: translateY(-2px); box-shadow: 0 0 24px rgba(0,210,255,.45); }
-        .btn:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
-        .vignette::after { content: ""; position: absolute; inset: -50%; opacity: .07; mix-blend-mode: overlay; animation: grain .6s steps(4) infinite;
-            background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
-        @keyframes grain { 0% { transform: translate(0,0); } 25% { transform: translate(-3%,2%); } 50% { transform: translate(2%,-3%); } 75% { transform: translate(-2%,-1%); } }
-        @media (prefers-reduced-motion: reduce) { .vignette::after { animation: none; } }
-
-        /* ---- IntelliFlood : marque, en-tête et appels à l'action ---- */
-        .logo { letter-spacing: .01em; font-size: 1.55rem; font-weight: 700; text-decoration: none; color: #fff; cursor: pointer; }
-        .logo b { color: #1fb5d9; font-weight: 700; }
-        .logo-full { display: block; width: 220px; height: auto; }
-        .step-title { letter-spacing: -.01em; font-weight: 600; }
-        .top-actions { display: flex; align-items: center; gap: 14px; }
-        .btn-sm { min-height: 42px; padding: 0 22px; font-size: .72rem; }
-        .btn.warm { background: #f28c28; color: #02070d; }
-        .cta-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 1.6rem; }
-        .cta-note { margin-top: 1rem; font-size: .72rem; color: #5d7e96; letter-spacing: .05em; }
-        .intro-note { margin-top: 1.4rem; font-size: .72rem; color: #5d7e96; letter-spacing: .05em; }
-        .gauge-readout { text-align: center; font-size: .75rem; line-height: 1.3; color: #00e1ff; }
-        .gauge-readout small { display: block; font-size: .6rem; letter-spacing: .2em; }
-        @media (max-width: 768px) {
-            header.top-bar { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
-            .logo-full { width: 180px; }
-            .top-actions { display: contents; }
-            .btn-sm { min-height: 40px; padding: 0 16px; }
-            .telemetry { order: 3; width: 100%; justify-content: space-between; gap: 8px; padding: 8px 14px; font-size: .62rem; letter-spacing: .06em; }
-        }
-        .step-content .data-item p.ok { color: #2ecc71; } .step-content .data-item p.mid { color: #f1c40f; }
-    </style>
+    @media (max-width: 1080px) {
+      .hero-main { grid-template-columns: 1fr; gap: 40px; padding-top: 24px; }
+      .live-card { max-width: 620px; }
+      .hazard-grid { grid-template-columns: repeat(3, 1fr); }
+      .section-head { grid-template-columns: 1fr; gap: 18px; align-items: start; }
+      .sources-panel { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 860px) {
+      .nav-links { display: none; }
+      .pill-live { display: none; }
+      .hero-main { padding-bottom: 56px; }
+      .hazard-grid { grid-template-columns: repeat(2, 1fr); }
+      .steps { grid-template-columns: 1fr; }
+      .footer-grid { grid-template-columns: 1fr 1fr; }
+      .cta-band { padding: 34px 26px; }
+      section.block { padding: 68px 0; }
+    }
+    @media (max-width: 560px) {
+      .topbar, .hero-main, .wrap, .source-strip-inner { width: calc(100% - 30px); }
+      .brand img { width: 44px; height: 44px; }
+      .brand-copy strong { font-size: 1.1rem; }
+      .brand-copy small { font-size: 0.54rem; letter-spacing: 0.16em; }
+      .top-actions .btn span { display: none; }
+      .top-actions .btn { padding: 0 14px; }
+      h1 { font-size: clamp(2.4rem, 12vw, 3.4rem); }
+      .hero-stats { gap: 20px; }
+      .hazard-counts { grid-template-columns: repeat(2, 1fr); }
+      .hazard-grid { grid-template-columns: 1fr; }
+      .footer-grid { grid-template-columns: 1fr; }
+      .live-foot { flex-direction: column; align-items: flex-start; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .dot { animation: none; }
+      .hero-video { display: none; }
+      .reveal { opacity: 1; transform: none; transition: none; }
+    }
+  </style>
 </head>
-<body class="locked">
+<body>
+  <header class="hero" id="accueil">
+    <div class="hero-fallback" aria-hidden="true"></div>
+    <video class="hero-video" id="hero-video" autoplay muted loop playsinline preload="metadata" aria-hidden="true">
+      <source src="/media/masterearth-hero.mp4" type="video/mp4">
+    </video>
+    <div class="hero-shade" aria-hidden="true"></div>
+    <div class="hero-grid" aria-hidden="true"></div>
 
-    <!-- Overlay d'Éclair & Vignette -->
-    <div id="lightning-flash"></div>
-    <div class="vignette"></div>
-    <div id="intro" role="dialog" aria-modal="true" aria-labelledby="intro-t">
-        <div class="intro-card">
-            <span class="step-tag">Côte d'Ivoire · Prévention des inondations</span>
-            <h1 id="intro-t" class="step-title">Intelli<span style="color:#1fb5d9">flood</span></h1>
-            <p class="step-desc">Suivez une crue de la première pluie à la décision. Faites défiler pour avancer dans le scénario et glissez la souris pour regarder autour de vous, vers l'orage comme vers l'eau. Le son renforce l'immersion.</p>
-            <div class="intro-actions">
-                <button class="btn" id="enter-snd" autofocus>Entrer avec le son</button>
-                <button class="btn ghost" id="enter-mute">Sans le son</button>
-            </div>
-            <p class="intro-note">Scénario illustratif : les valeurs affichées sont simulées, pas des mesures réelles.</p>
+    <div class="topbar">
+      <a class="brand" href="/" aria-label="MasterEarth — accueil">
+        <img src="/brand/masterearth-icon.png" alt="">
+        <span class="brand-copy">
+          <strong>Master<span>Earth</span></strong>
+          <small>Anticiper · Surveiller · Protéger</small>
+        </span>
+      </a>
+      <nav class="nav-links" aria-label="Navigation principale">
+        <a href="#risques">Risques</a>
+        <a href="#plateforme">Plateforme</a>
+        <a href="#sources">Sources</a>
+        <a href="#methode">Méthode</a>
+      </nav>
+      <div class="top-actions">
+        <span class="pill-live" id="live-pill"><span class="dot" id="live-dot"></span><span id="live-pill-text">Connexion aux flux…</span></span>
+        <a class="btn small" href="/app/"><span>Ouvrir la plateforme</span><span aria-hidden="true">→</span></a>
+      </div>
+    </div>
+
+    <main class="hero-main">
+      <div>
+        <span class="eyebrow">Surveillance mondiale en temps réel</span>
+        <h1>Veiller sur la <span class="accent">Terre</span>, anticiper chaque risque.</h1>
+        <p class="hero-lead">
+          MasterEarth rassemble les observations terrestres ouvertes et les alertes officielles
+          pour suivre les séismes, tsunamis, éruptions, cyclones, inondations, feux et sécheresses
+          au même endroit — sur une carte 2D et un globe 3D explorables.
+        </p>
+        <div class="hero-actions">
+          <a class="btn" href="/app/#risques">Explorer les risques en direct <span aria-hidden="true">→</span></a>
+          <a class="btn secondary" href="#plateforme">Découvrir la plateforme</a>
         </div>
-    </div>
-
-    <!-- En-tête : marque, indicateurs de simulation, accès plateforme -->
-    <header class="hud top-bar">
-        <a class="logo" href="#" aria-label="IntelliFlood — accueil">
-            <img class="logo-full" src="/brand/intelliflood-logo.png" alt="">
-        </a>
-        <div class="top-actions">
-            <div class="telemetry" aria-label="Indicateurs du scénario simulé">
-                <span>SUBMERSION SIMULÉE : <b id="submersion-percent">0%</b></span>
-                <span>PLUIE : <b id="rain-rate">125 mm/h</b></span>
-                <span>NIVEAU D'EAU : <b id="water-elevation">+0.00 m</b></span>
-            </div>
-            <a class="btn btn-sm" data-route="platform" href="/app/">Ouvrir la plateforme</a>
+        <p class="hero-note">
+          Chaque événement provient d'une source identifiée et datée. Les simulations sont
+          toujours signalées comme des estimations indicatives ; elles ne remplacent jamais
+          une alerte officielle.
+        </p>
+        <div class="hero-stats">
+          <div class="hero-stat"><strong id="stat-events">—</strong><span>événements suivis</span></div>
+          <div class="hero-stat"><strong id="stat-sources">—</strong><span>sources connectées</span></div>
+          <div class="hero-stat"><strong id="stat-updated">—</strong><span>dernière synchronisation UTC</span></div>
         </div>
-    </header>
+      </div>
 
-    <!-- Jauge de Montée des Eaux -->
-    <div class="flood-gauge">
-        <span class="gauge-label">Niveau d'alerte</span>
-        <div class="gauge-bar-bg">
-            <div class="gauge-bar-fill" id="gauge-fill"></div>
+      <aside class="live-card" aria-labelledby="live-title">
+        <div class="live-card-head">
+          <h2 id="live-title">Maintenant dans le monde</h2>
+          <span class="dot" aria-hidden="true"></span>
         </div>
-        <span class="gauge-readout" id="gauge-readout">0%<small>VERT</small></span>
-    </div>
-
-    <!-- Indicateur de défilement -->
-    <div class="scroll-indicator" id="scroll-hint">
-        <div class="mouse-icon">
-            <div class="mouse-wheel"></div>
+        <div class="hazard-counts" id="hazard-counts" aria-live="polite">
+          <div class="hazard-count"><b>—</b><span>Séismes</span></div>
+          <div class="hazard-count"><b>—</b><span>Cyclones</span></div>
+          <div class="hazard-count"><b>—</b><span>Inondations</span></div>
+          <div class="hazard-count"><b>—</b><span>Feux</span></div>
+          <div class="hazard-count"><b>—</b><span>Volcans</span></div>
+          <div class="hazard-count"><b>—</b><span>Tsunamis</span></div>
         </div>
-        <div class="scroll-text">Faites défiler</div>
+        <div class="event-ticker">
+          <h3>Derniers événements signalés</h3>
+          <div id="event-list"><p class="skeleton">Lecture des flux officiels…</p></div>
+        </div>
+        <div class="live-foot">
+          <span id="live-foot-source">Sources : USGS · GDACS · NASA EONET · NOAA</span>
+          <a href="/app/#risques">Tout voir →</a>
+        </div>
+      </aside>
+    </main>
+  </header>
+
+  <div class="source-strip" aria-label="État des sources de données">
+    <div class="source-strip-inner">
+      <b>Flux connectés</b>
+      <div class="source-list" id="source-strip">
+        <span class="pending"><i></i>USGS</span>
+        <span class="pending"><i></i>GDACS</span>
+        <span class="pending"><i></i>NASA EONET</span>
+        <span class="pending"><i></i>NOAA</span>
+      </div>
     </div>
+  </div>
 
-    <div class="look-hint" id="look-hint" role="note">
-        <span><b style="color:#fff">Glissez</b> pour regarder autour · <kbd>ZQSD</kbd> / <kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span>
-        <span id="cap" aria-hidden="true" style="color:#00e1ff;min-width:12ch">CAP 0°</span>
-        <button type="button" id="look-reset" aria-label="Recentrer la vue">Recentrer (R)</button>
-        <button type="button" id="snd" aria-pressed="false" aria-label="Activer le son">Son</button>
+  <section class="block" id="risques">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div>
+          <p class="kicker">Un seul écran, toutes les menaces</p>
+          <h2>Le pouls de la planète, en direct.</h2>
+        </div>
+        <p>
+          Les marqueurs sont placés à la position réelle publiée par la source, avec le nom du
+          lieu fourni par l'agence. Cliquez sur un événement dans la plateforme pour voler vers
+          lui, lire ses mesures et visualiser sa simulation 3D.
+        </p>
+      </div>
+      <div class="hazard-grid reveal">
+        <article class="hazard-card" style="--tone:#ff6b6b"><div class="hazard-glyph" aria-hidden="true">◉</div><h3>Séismes</h3><p>Magnitude, profondeur, intensité estimée et répliques.</p><span class="count"><b id="count-earthquake">—</b> en cours</span></article>
+        <article class="hazard-card" style="--tone:#26c8ff"><div class="hazard-glyph" aria-hidden="true">≈</div><h3>Tsunamis</h3><p>Alertes océaniques, hauteur de vague et temps d'arrivée.</p><span class="count"><b id="count-tsunami">—</b> en cours</span></article>
+        <article class="hazard-card" style="--tone:#ff9f43"><div class="hazard-glyph" aria-hidden="true">▲</div><h3>Volcans</h3><p>Niveaux d'alerte, panaches de cendres et coulées.</p><span class="count"><b id="count-volcano">—</b> en cours</span></article>
+        <article class="hazard-card" style="--tone:#c06bff"><div class="hazard-glyph" aria-hidden="true">◌</div><h3>Cyclones</h3><p>Vents, pression, trajectoire et surcote côtière.</p><span class="count"><b id="count-hurricane">—</b> en cours</span></article>
+        <article class="hazard-card" style="--tone:#4f9dff"><div class="hazard-glyph" aria-hidden="true">≋</div><h3>Inondations</h3><p>Crues signalées, pluies extrêmes et zones exposées.</p><span class="count"><b id="count-flood">—</b> en cours</span></article>
+        <article class="hazard-card" style="--tone:#ff7a45"><div class="hazard-glyph" aria-hidden="true">♨</div><h3>Feux de forêt</h3><p>Foyers actifs, surface brûlée et fumées.</p><span class="count"><b id="count-wildfire">—</b> en cours</span></article>
+        <article class="hazard-card" style="--tone:#e0b24b"><div class="hazard-glyph" aria-hidden="true">☼</div><h3>Sécheresses</h3><p>Déficits hydriques et stress sur les sols.</p><span class="count"><b id="count-drought">—</b> en cours</span></article>
+        <article class="hazard-card" style="--tone:#a68a6b"><div class="hazard-glyph" aria-hidden="true">⌁</div><h3>Glissements</h3><p>Versants instables et précipitations déclenchantes.</p><span class="count"><b id="count-landslide">—</b> en cours</span></article>
+        <article class="hazard-card" style="--tone:#e8c27a"><div class="hazard-glyph" aria-hidden="true">⌇</div><h3>Tempêtes de sable</h3><p>Visibilité, vents et transport de poussières.</p><span class="count"><b id="count-sandstorm">—</b> en cours</span></article>
+        <article class="hazard-card" style="--tone:#8fd7ff"><div class="hazard-glyph" aria-hidden="true">✳</div><h3>Blizzards</h3><p>Neige, refroidissement éolien et visibilité.</p><span class="count"><b id="count-blizzard">—</b> en cours</span></article>
+        <article class="hazard-card" style="--tone:#ff5f8f"><div class="hazard-glyph" aria-hidden="true">☀</div><h3>Canicules</h3><p>Températures extrêmes et risque sanitaire.</p><span class="count"><b id="count-heatwave">—</b> en cours</span></article>
+        <article class="hazard-card" style="--tone:#b6c6d6"><div class="hazard-glyph" aria-hidden="true">↯</div><h3>Orages violents</h3><p>Rafales, tornades et pluies intenses.</p><span class="count"><b id="count-storm">—</b> en cours</span></article>
+        <article class="hazard-card" style="--tone:#b6c6d6"><div class="hazard-glyph" aria-hidden="true">⌄</div><h3>Tornades</h3><p>Entonnoirs signalés, trajectoires et dommages.</p><span class="count"><b id="count-tornado">—</b> en cours</span></article>
+      </div>
     </div>
+  </section>
 
-    <!-- Canvas WebGL 3D -->
-    <canvas id="webgl-canvas"></canvas>
-
-    <!-- Conteneur Scrollytelling de Progression -->
-    <div class="scroll-container">
-        <section class="step" data-step="0">
-            <div class="step-content active">
-                <span class="step-tag">01 // Prévenir</span>
-                <h2 class="step-title">Voir venir l'orage</h2>
-                <p class="step-desc">Chaque saison des pluies met les villes ivoiriennes à l'épreuve. IntelliFlood réunit météo, capteurs de niveau d'eau, signalements de terrain et cartes pour repérer les zones à risque avant la première goutte.</p>
-                <div class="data-grid">
-                    <div class="data-item"><h4>Couverture</h4><p>Toute la Côte d'Ivoire</p></div>
-                    <div class="data-item"><h4>Conception</h4><p class="ok">Offline-first</p></div>
-                </div>
-            </div>
-        </section>
-        <section class="step right" data-step="1">
-            <div class="step-content">
-                <span class="step-tag">02 // Détecter</span>
-                <h2 class="step-title">Quand les caniveaux saturent</h2>
-                <p class="step-desc">Des capteurs ultrasoniques mesurent en continu le niveau d'eau dans les caniveaux. Les mesures sont filtrées pour écarter éclaboussures et débris avant toute alerte.</p>
-                <div class="data-grid">
-                    <div class="data-item"><h4>Capteur</h4><p>JSN-SR04T + ESP32</p></div>
-                    <div class="data-item"><h4>Anti-fausses alertes</h4><p class="mid">Médiane + persistance</p></div>
-                </div>
-            </div>
-        </section>
-        <section class="step" data-step="2">
-            <div class="step-content">
-                <span class="step-tag">03 // Alerter</span>
-                <h2 class="step-title">Le bon message, au bon moment</h2>
-                <p class="step-desc">Quand l'eau monte trop vite, la situation passe en Vert, Orange ou Rouge et l'alerte part sur plusieurs canaux : SMS géociblé, application citoyenne, sirènes et relais de quartier, y compris pour les habitants sans smartphone.</p>
-                <div class="data-grid">
-                    <div class="data-item"><h4>Niveaux</h4><p><span style="color:#2ecc71">Vert</span> · <span style="color:#f28c28">Orange</span> · <span style="color:#ff3b30">Rouge</span></p></div>
-                    <div class="data-item"><h4>Canaux</h4><p>SMS · App · Sirènes</p></div>
-                </div>
-            </div>
-        </section>
-        <section class="step right" data-step="3">
-            <div class="step-content">
-                <span class="step-tag">04 // Gérer</span>
-                <h2 class="step-title">Décider et agir ensemble</h2>
-                <p class="step-desc">Cartes, historique et scénarios aident autorités, organisations et citoyens à coordonner évacuations et interventions. Les simulations restent toujours distinguées des observations réelles.</p>
-                <div class="data-grid">
-                    <div class="data-item"><h4>Simulation</h4><p style="color:#00e1ff">Toujours signalée</p></div>
-                    <div class="data-item"><h4>Historique</h4><p>Traçable</p></div>
-                </div>
-                <div class="cta-row">
-                    <a class="btn warm" data-route="platform" href="/app/">Ouvrir la plateforme</a>
-                    <a class="btn ghost" data-route="globe" href="/app/#globe">Explorer le globe 3D</a>
-                </div>
-                <p class="cta-note">Globe 3D avec pluie simulée, capteurs, météo et alertes, depuis la plateforme.</p>
-            </div>
-        </section>
+  <section class="block" id="plateforme" style="background:linear-gradient(180deg, transparent, rgba(6,22,42,.4), transparent)">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div>
+          <p class="kicker">La plateforme MasterEarth</p>
+          <h2>Observer, comprendre, simuler, protéger.</h2>
+        </div>
+        <p>
+          Une carte Leaflet pour la lecture territoriale, un globe Cesium pour la vision
+          planétaire, et un même moteur de données pour les deux. Les calculs scientifiques
+          restent côté serveur ; l'interface ne fabrique aucune valeur.
+        </p>
+      </div>
+      <div class="steps reveal">
+        <article class="step-card">
+          <span class="step-num">01 · OBSERVER</span>
+          <h3>Le monde réel, maintenant</h3>
+          <p>USGS, GDACS, NASA EONET, NOAA et les réseaux d'observation alimentent une couche unique, horodatée et attribuée. Une source en panne n'est jamais remplacée par une valeur inventée.</p>
+        </article>
+        <article class="step-card">
+          <span class="step-num">02 · COMPRENDRE</span>
+          <h3>Un lieu, des mesures, un impact</h3>
+          <p>Chaque marqueur porte le nom réel du lieu, la magnitude ou le vent mesuré, la profondeur, la date et le lien vers le bulletin officiel. Les statistiques affichées sont celles de la source.</p>
+        </article>
+        <article class="step-card">
+          <span class="step-num">03 · SIMULER</span>
+          <h3>Tous les aléas, un seul moteur</h3>
+          <p>Séisme, tsunami, volcan, cyclone, inondation, feu, sécheresse, glissement, sable, blizzard, canicule ou orage : lancez un scénario indicatif et visualisez-le en 3D.</p>
+        </article>
+      </div>
     </div>
+  </section>
 
-    <!-- Script Principal Three.js -->
-    <script>
-        /* =========================================================================
-           0. BOUTONS D'ENTRÉE (indépendants de Three.js — fonctionnent même si erreur)
-           ========================================================================= */
-        (function() {
-            const ROUTES = { platform: '/app/', globe: '/app/#globe' };
-            document.querySelectorAll('[data-route]').forEach(a => { const r = ROUTES[a.dataset.route]; if (r) a.href = r; });
+  <section class="block" id="sources">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div>
+          <p class="kicker">Transparence des données</p>
+          <h2>Des sources réelles, jamais inventées.</h2>
+        </div>
+        <p>
+          MasterEarth agrège des flux publics officiels et scientifiques. Chaque réponse
+          expose sa provenance, sa licence et ses limites. En cas d'indisponibilité, la
+          plateforme affiche « indisponible » ou la dernière mesure marquée périmée.
+        </p>
+      </div>
+      <div class="sources-panel reveal">
+        <div class="principle-card">
+          <h3>Nos règles de lecture</h3>
+          <p>La fiabilité d'une alerte ne se déduit pas d'une belle animation. Nous séparons strictement :</p>
+          <ul>
+            <li>les observations et bulletins officiels, datés et attribués ;</li>
+            <li>les estimations de modèle, explicitement nommées ;</li>
+            <li>les simulations « et si ? », toujours indicatives.</li>
+          </ul>
+        </div>
+        <div class="source-rows" id="source-rows">
+          <div class="source-row"><div><strong>USGS Earthquake Hazards</strong><small>Séismes mondiaux M ≥ 2,5 sur 24 h · géométrie et magnitude officielles.</small></div><span class="source-status unknown">connexion…</span></div>
+          <div class="source-row"><div><strong>GDACS / Commission européenne</strong><small>Alertes multi-aléas : séismes, cyclones, inondations, feux, volcans.</small></div><span class="source-status unknown">connexion…</span></div>
+          <div class="source-row"><div><strong>NASA EONET</strong><small>Événements naturels ouverts : feux, tempêtes, volcans, glissements.</small></div><span class="source-status unknown">connexion…</span></div>
+          <div class="source-row"><div><strong>NOAA / USGS Volcanoes</strong><small>Tsunamis (PTWC/NTWC) et niveaux d'alerte volcanique américains.</small></div><span class="source-status unknown">connexion…</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
 
-            function enter(withSound) {
-                const intro = document.getElementById('intro');
-                if (intro) {
-                    intro.classList.add('hide');
-                    intro.addEventListener('transitionend', function handler() {
-                        intro.style.display = 'none';
-                        intro.removeEventListener('transitionend', handler);
-                    }, { once: true });
-                }
-                document.body.classList.remove('locked');
-                // Son optionnel - sera géré par le script Three.js si dispo
+  <section class="block" id="methode">
+    <div class="wrap">
+      <div class="cta-band reveal">
+        <p class="kicker">Prêt à regarder la Terre autrement ?</p>
+        <h2>Le globe est ouvert. Les données sont réelles.</h2>
+        <p>
+          Ouvrez la plateforme pour explorer les événements en cours, comparer la carte 2D et
+          le globe 3D, puis lancer vos propres scénarios sur n'importe quel point du monde.
+        </p>
+        <div class="hero-actions">
+          <a class="btn" href="/app/">Ouvrir MasterEarth <span aria-hidden="true">→</span></a>
+          <a class="btn secondary" href="/app/#risques">Voir les risques en direct</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <img src="/brand/masterearth-icon.png" alt="">
+          <div>
+            <strong>MasterEarth</strong>
+            <p>Plateforme ouverte de surveillance planétaire et de simulation des risques naturels. Anticiper · Surveiller · Protéger · Agir.</p>
+          </div>
+        </div>
+        <div class="footer-col">
+          <h3>Explorer</h3>
+          <a href="/app/#carte">Carte 2D</a>
+          <a href="/app/#globe">Globe 3D</a>
+          <a href="/app/#risques">Console des risques</a>
+          <a href="/app/#meteo">Observatoire météo</a>
+        </div>
+        <div class="footer-col">
+          <h3>Références</h3>
+          <a href="https://earthquake.usgs.gov/" target="_blank" rel="noopener noreferrer">USGS Earthquake Hazards</a>
+          <a href="https://www.gdacs.org/" target="_blank" rel="noopener noreferrer">GDACS</a>
+          <a href="https://eonet.gsfc.nasa.gov/" target="_blank" rel="noopener noreferrer">NASA EONET</a>
+          <a href="https://www.tsunami.gov/" target="_blank" rel="noopener noreferrer">NOAA Tsunami</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>© <span id="year">2026</span> MasterEarth · Données ouvertes, licences et attributions conservées.</span>
+        <span>Les simulations sont indicatives et ne remplacent jamais les consignes des autorités.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      "use strict";
+      var year = document.getElementById("year");
+      if (year) year.textContent = String(new Date().getFullYear());
+
+      // Vidéo : économise le CPU/GPU quand l'onglet est masqué ou si l'utilisateur
+      // préfère réduire les animations. La page reste lisible sans elle.
+      var video = document.getElementById("hero-video");
+      var reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+      function syncVideo() {
+        if (!video) return;
+        if (document.hidden || reduce.matches) video.pause();
+        else video.play().catch(function () {});
+      }
+      document.addEventListener("visibilitychange", syncVideo);
+      if (reduce.addEventListener) reduce.addEventListener("change", syncVideo);
+      syncVideo();
+
+      // Révélation au défilement.
+      if ("IntersectionObserver" in window) {
+        var observer = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("visible");
+              observer.unobserve(entry.target);
             }
+          });
+        }, { threshold: 0.16 });
+        document.querySelectorAll(".reveal").forEach(function (el) { observer.observe(el); });
+      } else {
+        document.querySelectorAll(".reveal").forEach(function (el) { el.classList.add("visible"); });
+      }
 
-            const enterSnd = document.getElementById('enter-snd');
-            const enterMute = document.getElementById('enter-mute');
-            if (enterSnd) enterSnd.addEventListener('click', () => enter(true));
-            if (enterMute) enterMute.addEventListener('click', () => enter(false));
-        })();
+      // --- Données réelles : aucun remplissage fictif -------------------------
+      var API = (function () {
+        var configured = document.querySelector('meta[name="masterearth-api"]');
+        if (configured && configured.content) return configured.content.replace(/\/$/, "");
+        var host = window.location.hostname || "127.0.0.1";
+        return /^(localhost|127\.0\.0\.1)$/i.test(host) && window.location.port !== "8000"
+          ? window.location.protocol + "//" + host + ":8000"
+          : window.location.origin;
+      })();
 
-        /* =========================================================================
-           1. INITIALISATION DU MOTEUR & PARAMÈTRES GLOBAUX
-           ========================================================================= */
-        let THREE_AVAILABLE = false;
+      var LABELS = {
+        earthquake: "Séismes", tsunami: "Tsunamis", volcano: "Volcans", hurricane: "Cyclones",
+        flood: "Inondations", wildfire: "Feux", drought: "Sécheresses", landslide: "Glissements",
+        sandstorm: "Tempêtes de sable", blizzard: "Blizzards", heatwave: "Canicules",
+        storm: "Orages", tornado: "Tornades"
+      };
+      var COLORS = {
+        earthquake: "#ff6b6b", tsunami: "#26c8ff", volcano: "#ff9f43", hurricane: "#c06bff",
+        flood: "#4f9dff", wildfire: "#ff7a45", drought: "#e0b24b", landslide: "#a68a6b",
+        sandstorm: "#e8c27a", blizzard: "#8fd7ff", heatwave: "#ff5f8f", storm: "#b6c6d6", tornado: "#b6c6d6"
+      };
+      var SOURCE_KEYS = ["usgs_earthquakes", "gdacs", "nasa_eonet", "usgs_volcanoes", "noaa_tsunami"];
+      var SOURCE_SHORT = {
+        usgs_earthquakes: "USGS", gdacs: "GDACS", nasa_eonet: "NASA EONET",
+        usgs_volcanoes: "USGS Volcanoes", noaa_tsunami: "NOAA Tsunami", nhc: "NOAA NHC"
+      };
+
+      function setText(id, value) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = value;
+      }
+      function fmtTime(iso) {
+        if (!iso) return "—";
+        var date = new Date(iso);
+        if (Number.isNaN(date.getTime())) return "—";
+        return date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+      }
+      function fmtAge(iso) {
+        if (!iso) return "—";
+        var age = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+        if (age < 60) return age + " s";
+        if (age < 3600) return Math.round(age / 60) + " min";
+        return Math.round(age / 3600) + " h";
+      }
+
+      function renderSources(payload) {
+        var rows = document.getElementById("source-rows");
+        var strip = document.getElementById("source-strip");
+        var sources = Array.isArray(payload.sources) ? payload.sources : [];
+        var connected = 0;
+        if (rows) {
+          rows.innerHTML = "";
+          sources.forEach(function (source) {
+            var row = document.createElement("div");
+            row.className = "source-row";
+            var copy = document.createElement("div");
+            var title = document.createElement("strong");
+            title.textContent = source.name || source.id;
+            var detail = document.createElement("small");
+            detail.textContent = source.status === "ok"
+              ? (source.count != null ? source.count + " événement(s) · " + (source.attribution || "") : (source.attribution || "Source connectée"))
+              : (source.error || "Source momentanément indisponible");
+            copy.appendChild(title);
+            copy.appendChild(detail);
+            var badge = document.createElement("span");
+            badge.className = "source-status " + (source.status === "ok" ? "ok" : source.status === "unavailable" ? "fail" : "unknown");
+            badge.textContent = source.status === "ok" ? "connectée" : source.status === "unavailable" ? "indisponible" : "en attente";
+            row.appendChild(copy);
+            row.appendChild(badge);
+            rows.appendChild(row);
+            if (source.status === "ok") connected += 1;
+          });
+        }
+        if (strip) {
+          strip.innerHTML = "";
+          var known = sources.length ? sources : SOURCE_KEYS.map(function (id) { return { id: id, status: "pending" }; });
+          known.slice(0, 6).forEach(function (source) {
+            var item = document.createElement("span");
+            item.className = source.status === "ok" ? "" : source.status === "unavailable" ? "off" : "pending";
+            var dot = document.createElement("i");
+            item.appendChild(dot);
+            item.appendChild(document.createTextNode(SOURCE_SHORT[source.id] || source.name || source.id));
+            strip.appendChild(item);
+          });
+        }
+        setText("stat-sources", sources.length ? connected + " / " + sources.length : "—");
+        return connected;
+      }
+
+      function renderEvents(payload) {
+        var events = Array.isArray(payload.events) ? payload.events : [];
+        var counts = payload.counts_by_type || {};
+        Object.keys(LABELS).forEach(function (kind) {
+          var el = document.getElementById("count-" + kind);
+          if (!el) return;
+          el.textContent = counts[kind] != null ? String(counts[kind]) : "—";
+        });
+        setText("stat-events", String(events.length));
+        var list = document.getElementById("event-list");
+        if (!list) return;
+        list.innerHTML = "";
+        var latest = events.slice().sort(function (a, b) {
+          return new Date(b.time || 0).getTime() - new Date(a.time || 0).getTime();
+        }).slice(0, 5);
+        if (!latest.length) {
+          var empty = document.createElement("p");
+          empty.className = "skeleton";
+          empty.textContent = "Aucun événement actif dans les flux pour le moment.";
+          list.appendChild(empty);
+          return;
+        }
+        latest.forEach(function (event) {
+          var line = document.createElement("div");
+          line.className = "event-line";
+          var dot = document.createElement("i");
+          dot.style.background = COLORS[event.hazard] || "#8fa9be";
+          var copy = document.createElement("div");
+          var title = document.createElement("strong");
+          title.textContent = event.title || LABELS[event.hazard] || "Événement";
+          var place = document.createElement("small");
+          place.textContent = event.place || "Lieu non précisé";
+          copy.appendChild(title);
+          copy.appendChild(place);
+          var time = document.createElement("time");
+          time.textContent = fmtTime(event.time);
+          line.appendChild(dot);
+          line.appendChild(copy);
+          line.appendChild(time);
+          list.appendChild(line);
+        });
+      }
+
+      var livePill = document.getElementById("live-pill");
+      var livePillText = document.getElementById("live-pill-text");
+      var liveDot = document.getElementById("live-dot");
+
+      function setLive(state, text) {
+        if (livePillText) livePillText.textContent = text;
+        if (liveDot) {
+          liveDot.className = "dot" + (state === "ok" ? "" : " warn");
+        }
+        if (livePill) livePill.title = text;
+      }
+
+      async function loadHazards() {
         try {
-            if (typeof THREE === 'undefined') throw new Error('Three.js non chargé');
-
-            const canvas = document.getElementById('webgl-canvas');
-            const flashOverlay = document.getElementById('lightning-flash');
-            const submersionLabel = document.getElementById('submersion-percent');
-            const elevationLabel = document.getElementById('water-elevation');
-            const gaugeFill = document.getElementById('gauge-fill');
-            const gaugeReadout = document.getElementById('gauge-readout');
-
-            const scene = new THREE.Scene();
-            THREE_AVAILABLE = true;
-        scene.background = new THREE.Color(0x040810);
-        scene.fog = new THREE.FogExp2(0x06111e, 0.015);
-
-        const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 45, 95);
-
-        const renderer = new THREE.WebGLRenderer({
-            canvas: canvas,
-            antialias: true,
-            powerPreference: "high-performance"
-        });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.0;
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-        /* =========================================================================
-           2. SYSTÈME D'ÉCLAIRAGE & AMBIANCE ORAGEUSE
-           ========================================================================= */
-        const ambientLight = new THREE.AmbientLight(0x1a334d, 0.9);
-        scene.add(ambientLight);
-
-        const dirLight = new THREE.DirectionalLight(0x407099, 1.2);
-        dirLight.position.set(40, 80, 20);
-        dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 2048;
-        dirLight.shadow.mapSize.height = 2048;
-        dirLight.shadow.camera.near = 0.5;
-        dirLight.shadow.camera.far = 250;
-        const d = 80;
-        dirLight.shadow.camera.left = -d;
-        dirLight.shadow.camera.right = d;
-        dirLight.shadow.camera.top = d;
-        dirLight.shadow.camera.bottom = -d;
-        dirLight.shadow.bias = -0.0005;
-        scene.add(dirLight);
-
-        scene.add(new THREE.HemisphereLight(0x6b8fb8, 0x0a121b, 0.7));
-
-        // Lumière ponctuelle d'éclair
-        const lightningLight = new THREE.PointLight(0xaad8ff, 0, 300);
-        lightningLight.position.set(0, 70, 0);
-        scene.add(lightningLight);
-
-        /* =========================================================================
-           3. GÉNÉRATION DE LA VILLE PROCÉDURALE (GRATTE-CIELS & RUES)
-           ========================================================================= */
-        const cityGroup = new THREE.Group();
-        scene.add(cityGroup);
-
-        const GRID_SIZE = 14;
-        const BLOCK_SPACING = 16;
-        const cityExtent = (GRID_SIZE * BLOCK_SPACING) / 2;
-
-        // Textures procédurales pour façades de fenêtres
-        function generateBuildingTexture() {
-            const texCanvas = document.createElement('canvas');
-            texCanvas.width = 128;
-            texCanvas.height = 256;
-            const ctx = texCanvas.getContext('2d');
-
-            ctx.fillStyle = '#0a1017';
-            ctx.fillRect(0, 0, 128, 256);
-
-            // Fenêtres allumées & éteintes
-            for (let y = 6; y < 256; y += 12) {
-                for (let x = 6; x < 128; x += 10) {
-                    const rnd = Math.random();
-                    if (rnd > 0.85) {
-                        ctx.fillStyle = '#ffdf88'; // Lumière chaude
-                    } else if (rnd > 0.6) {
-                        ctx.fillStyle = '#64d2ff'; // Lumière froide
-                    } else {
-                        ctx.fillStyle = '#05080c'; // Éteint
-                    }
-                    ctx.fillRect(x, y, 6, 8);
-                }
-            }
-            const texture = new THREE.CanvasTexture(texCanvas);
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
-            return texture;
+          var response = await fetch(API + "/api/v1/hazards", { headers: { Accept: "application/json" } });
+          if (!response.ok) throw new Error("HTTP " + response.status);
+          var payload = await response.json();
+          renderEvents(payload);
+          renderSources(payload);
+          setText("stat-updated", fmtAge(payload.generated_at));
+          var events = Array.isArray(payload.events) ? payload.events : [];
+          var okSources = (payload.sources || []).filter(function (s) { return s.status === "ok"; }).length;
+          setLive(events.length || okSources ? "ok" : "warn", events.length + " événement(s) · " + okSources + " source(s) en ligne");
+          if (payload.stale) setLive("warn", "Dernière synchronisation conservée (" + fmtAge(payload.generated_at) + ")");
+          var sourceEl = document.getElementById("live-foot-source");
+          if (sourceEl && payload.attribution) sourceEl.textContent = payload.attribution;
+        } catch (error) {
+          setLive("warn", "Flux momentanément indisponible");
+          setText("stat-sources", "—");
+          setText("stat-events", "—");
+          setText("stat-updated", "—");
+          var list = document.getElementById("event-list");
+          if (list) {
+            list.innerHTML = "";
+            var note = document.createElement("p");
+            note.className = "skeleton";
+            note.textContent = "Les flux temps réel ne répondent pas. Aucune donnée n'est inventée : ouvrez la plateforme pour réessayer.";
+            list.appendChild(note);
+          }
+          var strip = document.getElementById("source-strip");
+          if (strip) strip.querySelectorAll("span").forEach(function (span) { span.className = "off"; });
         }
-
-        const buildingTexture = generateBuildingTexture();
-        const baseBuildingMat = new THREE.MeshStandardMaterial({
-            map: buildingTexture,
-            roughness: 0.35,
-            metalness: 0.65,
-            bumpMap: buildingTexture,
-            bumpScale: 0.05
-        });
-
-        // Sol (rues, canaux initiaux)
-        const groundGeo = new THREE.PlaneGeometry(350, 350, 64, 64);
-        const roadTex = (() => {
-            const S = 2048, k = S / 350, c = document.createElement('canvas');
-            c.width = c.height = S;
-            const g = c.getContext('2d');
-            g.fillStyle = '#0c131a'; g.fillRect(0, 0, S, S);
-            const P = v => (v + 175) * k;
-            for (let n = -11; n <= 10; n++) {
-                const a = 8 + n * 16;
-                g.fillStyle = '#1b242d';
-                g.fillRect(P(a) - 3.6 * k, 0, 7.2 * k, S); g.fillRect(0, P(a) - 3.6 * k, S, 7.2 * k);
-                g.fillStyle = '#e8c547';
-                for (let d = -175; d < 175; d += 4) { g.fillRect(P(a) - 0.12 * k, P(d), 0.24 * k, 2 * k); g.fillRect(P(d), P(a) - 0.12 * k, 2 * k, 0.24 * k); }
-                g.fillStyle = 'rgba(220,235,245,0.55)';
-                [-3.2, 3.2].forEach(o => { g.fillRect(P(a + o) - 0.08 * k, 0, 0.16 * k, S); g.fillRect(0, P(a + o) - 0.08 * k, S, 0.16 * k); });
-            }
-            const t = new THREE.CanvasTexture(c);
-            t.anisotropy = 8;
-            return t;
-        })();
-        const groundMat = new THREE.MeshStandardMaterial({
-            map: roadTex,
-            color: 0xffffff,
-            roughness: 0.9,
-            metalness: 0.2
-        });
-        const ground = new THREE.Mesh(groundGeo, groundMat);
-        ground.rotation.x = -Math.PI / 2;
-        ground.position.y = -0.2;
-        ground.receiveShadow = true;
-        scene.add(ground);
-
-        // Instanciation groupée des buildings
-        const buildingGeometries = [];
-        const buildingRects = [];
-        const numBlocks = GRID_SIZE * GRID_SIZE;
-
-        for (let i = 0; i < GRID_SIZE; i++) {
-            for (let j = 0; j < GRID_SIZE; j++) {
-                // Création d'avenues et allées
-                const posX = (i - GRID_SIZE / 2) * BLOCK_SPACING + (Math.random() - 0.5) * 2;
-                const posZ = (j - GRID_SIZE / 2) * BLOCK_SPACING + (Math.random() - 0.5) * 2;
-
-                // Zone centrale plus dense et haute
-                const distFromCenter = Math.sqrt(posX * posX + posZ * posZ);
-                if (distFromCenter < 18 && Math.random() > 0.4) continue; // Place publique / place de la baie
-
-                const width = 6 + Math.random() * 5;
-                const depth = 6 + Math.random() * 5;
-                const height = Math.max(12, (70 - distFromCenter * 0.45) * (0.5 + Math.random() * 0.9));
-
-                const bGeo = new THREE.BoxGeometry(width, height, depth);
-                bGeo.translate(posX, height / 2, posZ);
-
-                // Config UV repeat
-                const uvAttr = bGeo.attributes.uv;
-                for (let k = 0; k < uvAttr.count; k++) {
-                    uvAttr.setY(k, uvAttr.getY(k) * (height / 10));
-                    uvAttr.setX(k, uvAttr.getX(k) * (width / 8));
-                }
-                buildingGeometries.push(bGeo);
-                buildingRects.push({ x: posX, z: posZ, hw: width / 2 + 0.6, hd: depth / 2 + 0.6 });
-            }
-        }
-
-        // Merge de toutes les géométries pour préserver les performances (1 seul drawcall)
-        let mergedGeometry;
-        if (THREE.BufferGeometryUtils) {
-            mergedGeometry = THREE.BufferGeometryUtils.mergeBufferGeometries(buildingGeometries);
-        } else {
-            // Concaténation simple manuelle
-            mergedGeometry = buildingGeometries[0];
-            for(let i=1; i<buildingGeometries.length; i++) {
-                // Fallback direct Three.js
-                buildingGeometries[i].applyMatrix4(new THREE.Matrix4());
-            }
-        }
-
-        // Assemblage des bâtiments
-        buildingGeometries.forEach((geo) => {
-            const bMesh = new THREE.Mesh(geo, baseBuildingMat);
-            bMesh.castShadow = true;
-            bMesh.receiveShadow = true;
-            cityGroup.add(bMesh);
-        });
-
-        /* =========================================================================
-           4. PLAN D'EAU ÉVOLUTIF D'INONDATION (SHADER ANIMÉ)
-           ========================================================================= */
-        const waterGeometry = new THREE.PlaneGeometry(350, 350, 128, 128);
-        waterGeometry.rotateX(-Math.PI / 2);
-
-        // Custom Shader Material pour des ondes dynamiques et reflets métalliques orageux
-        const waterMaterial = new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: { value: 0 },
-                uWaterColor: { value: new THREE.Color(0x06283b) },
-                uSurfaceColor: { value: new THREE.Color(0x286e88) },
-                uFoamColor: { value: new THREE.Color(0x89d2ec) },
-                uFlash: { value: 0 }
-            },
-            vertexShader: `
-                uniform float uTime;
-                varying vec3 vPosition;
-                varying vec3 vNormal;
-                varying float vElevation;
-
-                void main() {
-                    vPosition = position;
-                    vec3 pos = position;
-
-                    // Superposition de vagues sinus/cosinus
-                    float wave1 = sin(pos.x * 0.15 + uTime * 2.2) * cos(pos.z * 0.15 + uTime * 1.8) * 0.45;
-                    float wave2 = sin(pos.x * 0.35 - uTime * 3.0) * cos(pos.z * 0.28 + uTime * 2.5) * 0.22;
-                    float wave3 = sin(pos.x * 0.8 + pos.z * 0.8 + uTime * 4.0) * 0.12;
-
-                    pos.y += wave1 + wave2 + wave3;
-                    vElevation = wave1 + wave2 + wave3;
-
-                    // Recalcul analytique approché des normales de vagues
-                    vec3 normalMod = vec3(
-                        - (cos(pos.x * 0.15 + uTime * 2.2) * 0.15 * 0.45),
-                        1.0,
-                        - (-sin(pos.z * 0.15 + uTime * 1.8) * 0.15 * 0.45)
-                    );
-                    vNormal = normalize(normalMatrix * normalMod);
-
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-                }
-            `,
-            fragmentShader: `
-                uniform float uFlash; uniform float uTime; uniform vec3 uWaterColor;
-                uniform vec3 uSurfaceColor;
-                uniform vec3 uFoamColor;
-                varying vec3 vNormal;
-                varying vec3 vPosition;
-                varying float vElevation;
-
-                void main() {
-                    vec3 viewDir = normalize(cameraPosition - vPosition);
-                    vec3 lightDir = normalize(vec3(40.0, 75.0, 20.0));
-                    
-                    // Facteur de Fresnel
-                    float fresnel = dot(viewDir, vNormal);
-                    fresnel = clamp(1.0 - fresnel, 0.0, 1.0);
-                    fresnel = pow(fresnel, 2.5);
-
-                    // Reflet spéculaire de la lumière
-                    vec3 halfVector = normalize(lightDir + viewDir);
-                    float spec = pow(max(dot(vNormal, halfVector), 0.0), 32.0);
-
-                    // Mix couleur profonde / crête
-                    vec3 col = mix(uWaterColor, uSurfaceColor, vElevation * 1.2 + 0.4);
-                    col = mix(col, uFoamColor, smoothstep(0.4, 0.6, vElevation));
-                    col += spec * 0.7;
-                    col = mix(col, vec3(0.2, 0.28, 0.38), fresnel * 0.6);
-
-                    float rip = sin(vPosition.x * 2.3 + uTime * 5.0) * sin(vPosition.z * 2.9 - uTime * 4.2);
-                    col += rip * 0.025 + uFlash * vec3(0.3, 0.4, 0.55) * (0.5 + fresnel);
-                    gl_FragColor = vec4(col, 0.9);
-                }
-            `,
-            transparent: true,
-            roughness: 0.1
-        });
-
-        const waterMesh = new THREE.Mesh(waterGeometry, waterMaterial);
-        waterMesh.position.y = 0.0;
-        scene.add(waterMesh);
-
-        /* =========================================================================
-           5. SYSTÈME DE PLUIE VOLUMÉTRIQUE & PROJECTIONS
-           ========================================================================= */
-        const RAIN_COUNT = 15000;
-        const rainGeo = new THREE.BufferGeometry();
-        const rainPositions = new Float32Array(RAIN_COUNT * 3);
-        const rainVelocities = new Float32Array(RAIN_COUNT);
-
-        for (let i = 0; i < RAIN_COUNT; i++) {
-            rainPositions[i * 3 + 0] = (Math.random() - 0.5) * 220;
-            rainPositions[i * 3 + 1] = Math.random() * 120;
-            rainPositions[i * 3 + 2] = (Math.random() - 0.5) * 220;
-            rainVelocities[i] = 1.6 + Math.random() * 1.8;
-        }
-
-        rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
-
-        // Particules de pluie sous forme de traits étirés
-        const rainMaterial = new THREE.PointsMaterial({
-            color: 0x90caff,
-            size: 0.45,
-            transparent: true,
-            opacity: 0.75,
-            blending: THREE.AdditiveBlending
-        });
-
-        const rainSystem = new THREE.Points(rainGeo, rainMaterial);
-        scene.add(rainSystem);
-
-
-        /* =========================================================================
-           5b. VIE URBAINE : VÉHICULES, MOBILIER URBAIN & DÉBRIS FLOTTANTS
-           ========================================================================= */
-        const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        const rnd = (a, b) => a + Math.random() * (b - a);
-        const pick = arr => arr[Math.floor(Math.random() * arr.length)];
-        const hitsBuilding = (x, z, r) => buildingRects.some(b => Math.abs(x - b.x) < b.hw + r && Math.abs(z - b.z) < b.hd + r);
-        const streetAxis = () => 8 + (Math.floor(Math.random() * 22) - 11) * 16;
-        function waveH(x, z, t) {
-            return Math.sin(x * 0.15 + t * 2.2) * Math.cos(z * 0.15 + t * 1.8) * 0.45
-                 + Math.sin(x * 0.35 - t * 3.0) * Math.cos(z * 0.28 + t * 2.5) * 0.22
-                 + Math.sin((x + z) * 0.8 + t * 4.0) * 0.12;
-        }
-        const std = (color, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.45, metalness: 0.5 }, o));
-        const paints = [0xc0392b, 0xf1c40f, 0xe8edf2, 0x8e9aa6, 0x1f4e8c, 0x2e7d4f, 0xe67e22, 0x5a6470].map(c => std(c));
-        const glassMat = std(0x0b1a26, { roughness: 0.1, metalness: 0.9 });
-        const tyreMat = std(0x050505, { roughness: 0.9, metalness: 0 });
-        const headMat = new THREE.MeshBasicMaterial({ color: 0xfff2b8 });
-        const tailMat = new THREE.MeshBasicMaterial({ color: 0xff2a1a });
-        const floaters = [];
-
-        function makeVehicle(len, w, h, paint, cabinLen) {
-            const g = new THREE.Group();
-            const body = new THREE.Mesh(new THREE.BoxGeometry(w, h * 0.55, len), paint);
-            body.position.y = h * 0.1; body.castShadow = true; g.add(body);
-            const cab = new THREE.Mesh(new THREE.BoxGeometry(w * 0.88, h * 0.45, cabinLen), glassMat);
-            cab.position.set(0, h * 0.1 + h * 0.5, -len * 0.05); g.add(cab);
-            const roof = new THREE.Mesh(new THREE.BoxGeometry(w * 0.9, 0.08, cabinLen * 1.02), paint);
-            roof.position.set(0, h * 0.1 + h * 0.73, -len * 0.05); g.add(roof);
-            [len * 0.3, -len * 0.3].forEach(z => {
-                const ax = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.38, w + 0.18, 12), tyreMat);
-                ax.rotation.z = Math.PI / 2; ax.position.set(0, -h * 0.2, z); g.add(ax);
-            });
-            const hl = new THREE.Mesh(new THREE.BoxGeometry(w * 0.8, 0.16, 0.06), headMat);
-            hl.position.set(0, h * 0.12, len / 2 + 0.02); g.add(hl);
-            const tl = new THREE.Mesh(new THREE.BoxGeometry(w * 0.8, 0.14, 0.06), tailMat);
-            tl.position.set(0, h * 0.12, -len / 2 - 0.02); g.add(tl);
-            return g;
-        }
-        const geo = {
-            cone: new THREE.ConeGeometry(0.35, 0.9, 10), barrel: new THREE.CylinderGeometry(0.42, 0.42, 1.1, 14),
-            box: new THREE.BoxGeometry(1, 1, 1), tyre: new THREE.TorusGeometry(0.45, 0.2, 8, 16), bag: new THREE.SphereGeometry(0.5, 8, 6)
-        };
-        const propDefs = {
-            cone:    () => { const m = new THREE.Mesh(geo.cone, std(0xff6a1a, { metalness: 0 })); return [m, 0.45, 0.1]; },
-            barrel:  () => { const m = new THREE.Mesh(geo.barrel, std(pick([0xc0392b, 0x1f5fa8, 0x2e7d4f]))); m.castShadow = true; return [m, 0.55, 0.25]; },
-            dumpster:() => { const m = new THREE.Mesh(geo.box, std(0x2f6b4a)); m.scale.set(1.9, 1.3, 1.1); m.castShadow = true; return [m, 0.65, 0.7]; },
-            plank:   () => { const m = new THREE.Mesh(geo.box, std(0x7a5232, { metalness: 0, roughness: 0.9 })); m.scale.set(rnd(2.5, 4.5), 0.14, rnd(0.4, 1.1)); return [m, 0.07, 0.0]; },
-            pallet:  () => { const m = new THREE.Mesh(geo.box, std(0x8b6b45, { metalness: 0, roughness: 0.9 })); m.scale.set(1.6, 0.3, 1.2); return [m, 0.15, 0.0]; },
-            tyre:    () => { const m = new THREE.Mesh(geo.tyre, tyreMat); m.rotation.x = Math.PI / 2; return [m, 0.2, 0.0]; },
-            bag:     () => { const m = new THREE.Mesh(geo.bag, std(0x0d1117, { roughness: 0.3, metalness: 0.1 })); m.scale.set(1, 0.7, 1); return [m, 0.3, 0.0]; }
-        };
-        function addFloater(obj, restY, thresh, x, z, yaw, tilt) {
-            obj.position.set(x, restY, z); obj.rotation.order = 'YXZ'; obj.rotation.y = yaw;
-            scene.add(obj);
-            const sp = rnd(0.25, 1.0);
-            floaters.push({ obj, restY, thresh, off: restY - thresh, x, z, yaw, tilt,
-                vx: rnd(-1, 1) * sp + 0.35, vz: rnd(-1, 1) * sp + 0.15, spin: rnd(-0.25, 0.25), ph: rnd(0, 6.28), afloat: 0 });
-        }
-        function placeOnStreet(r) {
-            for (let i = 0; i < 40; i++) {
-                const alongX = Math.random() > 0.5, a = streetAxis(), b = rnd(-105, 105);
-                const x = alongX ? b : a + rnd(-1.6, 1.6), z = alongX ? a + rnd(-1.6, 1.6) : b;
-                if (!hitsBuilding(x, z, r)) return { x, z, yaw: alongX ? Math.PI / 2 : 0, ok: true };
-            }
-            return { ok: false };
-        }
-        // Voitures (38), bus/camions (5)
-        for (let i = 0; i < 43; i++) {
-            const big = i >= 38, p = placeOnStreet(big ? 3.8 : 2.4); if (!p.ok) continue;
-            const v = big ? makeVehicle(7.2, 2.4, 3.0, pick(paints), 5.2) : makeVehicle(rnd(3.9, 4.6), 1.9, 1.5, pick(paints), 2.0);
-            const rest = big ? 1.5 : 0.85;
-            addFloater(v, rest, big ? 1.1 : 0.75, p.x, p.z, p.yaw + (Math.random() > 0.5 ? 0 : Math.PI) + rnd(-0.15, 0.15), rnd(-0.18, 0.18));
-        }
-        // Débris & mobilier urbain flottants
-        const mix = ['cone', 'cone', 'cone', 'barrel', 'barrel', 'barrel', 'dumpster', 'plank', 'plank', 'pallet', 'tyre', 'tyre', 'bag', 'bag'];
-        for (let i = 0; i < 95; i++) {
-            const kind = pick(mix), [m, rest, thr] = propDefs[kind](), p = placeOnStreet(1.2); if (!p.ok) continue;
-            addFloater(m, rest, thr, p.x + rnd(-2, 2), p.z + rnd(-2, 2), rnd(0, 6.28), kind === 'barrel' || kind === 'cone' ? rnd(-0.3, 0.3) : 0);
-        }
-        // Lampadaires (instanciés, fixes — se font submerger)
-        (() => {
-            const spots = [];
-            for (let a = -11; a <= 10; a++) for (let b = -11; b <= 10; b++) {
-                const x = 8 + a * 16 + 3.6, z = 8 + b * 16 + 3.6;
-                if (Math.random() > 0.55 && !hitsBuilding(x, z, 0.5)) spots.push([x, z]);
-            }
-            const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.1, 0.16, 8, 6), std(0x39424c), spots.length);
-            const heads = new THREE.InstancedMesh(new THREE.SphereGeometry(0.42, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffd9a0 }), spots.length);
-            const M = new THREE.Matrix4();
-            spots.forEach(([x, z], i) => { poles.setMatrixAt(i, M.makeTranslation(x, 4, z)); heads.setMatrixAt(i, M.makeTranslation(x, 8.1, z)); });
-            scene.add(poles, heads);
-        })();
-
-        const _fv = new THREE.Vector3();
-        function updateFloaters(t, dt) {
-            const w = waterMesh.position.y, amp = reduceMotion ? 0.35 : 1;
-            floaters.forEach(f => {
-                const target = THREE.MathUtils.clamp((w - f.thresh) / 0.7, 0, 1);
-                f.afloat += (target - f.afloat) * 0.08;
-                const a = f.afloat;
-                if (a > 0.4) { // dérive portée par le courant, rebond sur les bâtiments
-                    const nx = f.x + f.vx * dt * a, nz = f.z + f.vz * dt * a;
-                    if (hitsBuilding(nx, f.z, 0.8) || Math.abs(nx) > 130) f.vx *= -1; else f.x = nx;
-                    if (hitsBuilding(f.x, nz, 0.8) || Math.abs(nz) > 130) f.vz *= -1; else f.z = nz;
-                    f.yaw += f.spin * dt * a * amp;
-                }
-                const h = waveH(f.x, f.z, t) * amp;
-                const y = THREE.MathUtils.lerp(f.restY, w + h + f.off + Math.sin(t * 1.3 + f.ph) * 0.04, a);
-                const dx = (waveH(f.x - 0.8, f.z, t) - waveH(f.x + 0.8, f.z, t)) * amp, dz = (waveH(f.x, f.z + 0.8, t) - waveH(f.x, f.z - 0.8, t)) * amp;
-                f.obj.position.set(f.x, y, f.z);
-                f.obj.rotation.set(Math.atan(dz / 1.6) * a + f.tilt * a, f.yaw, Math.atan(dx / 1.6) * a + f.tilt * 0.5 * a);
-            });
-        }
-
-
-        /* =========================================================================
-           5c. CIEL ORAGEUX, ÉCLAIRS, ÉCUME, AMBIANCE SONORE
-           ========================================================================= */
-        let skyFlash = 0;
-        const skyMat = new THREE.ShaderMaterial({
-            uniforms: { uTime: { value: 0 }, uFlash: { value: 0 } }, side: THREE.BackSide, depthWrite: false,
-            vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-            fragmentShader: `varying vec3 vD; uniform float uTime; uniform float uFlash;
-                float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-                float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-                    return mix(mix(h(i), h(i + vec2(1.0, 0.0)), f.x), mix(h(i + vec2(0.0, 1.0)), h(i + vec2(1.0, 1.0)), f.x), f.y); }
-                float fbm(vec2 p){ float v = 0.0, a = 0.5; for(int i = 0; i < 5; i++){ v += a * n(p); p = p * 2.03 + 1.7; a *= 0.5; } return v; }
-                void main(){
-                    float y = max(vD.y, 0.03);
-                    vec2 uv = vD.xz / (y + 0.3) * 1.5 + uTime * vec2(0.025, 0.015);
-                    float c = fbm(uv), c2 = fbm(uv * 2.0 - uTime * 0.03);
-                    vec3 col = mix(vec3(0.05, 0.08, 0.12), vec3(0.015, 0.025, 0.05), smoothstep(0.0, 0.8, vD.y));
-                    col = mix(col, vec3(0.22, 0.28, 0.36), smoothstep(0.35, 0.9, c * 0.7 + c2 * 0.4));
-                    col *= mix(0.55, 1.0, c2);
-                    col += uFlash * vec3(0.5, 0.6, 0.85) * (0.3 + c);
-                    col = mix(col, vec3(0.05, 0.09, 0.14), smoothstep(0.28, 0.0, vD.y) * 0.8);
-                    gl_FragColor = vec4(col, 1.0);
-                }`
-        });
-        const skyDome = new THREE.Mesh(new THREE.SphereGeometry(700, 32, 16), skyMat);
-        skyDome.renderOrder = -10; skyDome.frustumCulled = false; scene.add(skyDome);
-
-        const boltMat = new THREE.LineBasicMaterial({ color: 0xd8ecff, transparent: true, opacity: 0, fog: false });
-        const bolt = new THREE.Line(new THREE.BufferGeometry(), boltMat);
-        bolt.frustumCulled = false; scene.add(bolt);
-        function spawnBolt() {
-            const pts = []; let x = rnd(-130, 130), z = rnd(-130, 130);
-            for (let y = 300; y > 0; y -= 12) { x += rnd(-9, 9); z += rnd(-9, 9); pts.push(new THREE.Vector3(x, y, z)); }
-            bolt.geometry.setFromPoints(pts); boltMat.opacity = 1;
-        }
-
-        // Écume autour des objets flottants (1 seul draw call)
-        const foam = new THREE.InstancedMesh(new THREE.RingGeometry(0.55, 1, 20),
-            new THREE.MeshBasicMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.35, depthWrite: false, side: THREE.DoubleSide }), floaters.length);
-        foam.frustumCulled = false; scene.add(foam);
-        floaters.forEach(f => { const b = new THREE.Box3().setFromObject(f.obj); f.r = Math.max(b.max.x - b.min.x, b.max.z - b.min.z) * 0.7 + 0.4; });
-        const _m = new THREE.Matrix4(), _q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)), _p = new THREE.Vector3(), _s = new THREE.Vector3();
-
-        // Audio procédural (pluie, vent, tonnerre) — démarré après un geste utilisateur
-        let AC = null, master, windG, muted = false;
-        const sndBtn = document.getElementById('snd');
-        function noiseBuf(brown) {
-            const b = AC.createBuffer(1, AC.sampleRate * 3, AC.sampleRate), d = b.getChannelData(0); let l = 0;
-            for (let i = 0; i < d.length; i++) { const w = Math.random() * 2 - 1; if (brown) { l = (l + 0.02 * w) / 1.02; d[i] = l * 3.5; } else d[i] = w; }
-            return b;
-        }
-        function loopNoise(brown, type, freq, gain) {
-            const s = AC.createBufferSource(); s.buffer = noiseBuf(brown); s.loop = true;
-            const f = AC.createBiquadFilter(); f.type = type; f.frequency.value = freq;
-            const g = AC.createGain(); g.gain.value = gain; s.connect(f); f.connect(g); g.connect(master); s.start(); return g;
-        }
-        function startAudio() {
-            if (AC) return;
-            AC = new (window.AudioContext || window.webkitAudioContext)();
-            master = AC.createGain(); master.gain.value = muted ? 0 : 0.7; const comp = AC.createDynamicsCompressor(); master.connect(comp); comp.connect(AC.destination);
-            loopNoise(false, 'highpass', 1600, 0.09); windG = loopNoise(true, 'lowpass', 420, 1.0);
-        }
-        function setMuted(m) {
-            muted = m; if (master) master.gain.value = m ? 0 : 0.7;
-            sndBtn.setAttribute('aria-pressed', String(!m)); sndBtn.textContent = m ? 'Son coupé' : 'Son activé';
-            sndBtn.setAttribute('aria-label', m ? 'Activer le son' : 'Couper le son');
-        }
-        let rev = null;
-        function makeIR(sec) {
-            const n = Math.floor(AC.sampleRate * sec), b = AC.createBuffer(2, n, AC.sampleRate);
-            for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3); }
-            return b;
-        }
-        function thunderBus() { // sortie directe + réverbération (écho entre les immeubles)
-            if (!rev) { rev = AC.createConvolver(); rev.buffer = makeIR(3.2); const rg = AC.createGain(); rg.gain.value = 0.55; rev.connect(rg); rg.connect(master); }
-            const bus = AC.createGain(); bus.connect(master); bus.connect(rev); return bus;
-        }
-        function crack(v) { // claquement sec et crépitant, comme l'air qui se déchire
-            if (!AC || muted) return;
-            if (AC.state === 'suspended') AC.resume();
-            const bus = thunderBus(), t = AC.currentTime + 0.03;
-            const s = AC.createBufferSource(); s.buffer = noiseBuf(false);
-            const f = AC.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.7;
-            f.frequency.setValueAtTime(4200, t); f.frequency.exponentialRampToValueAtTime(350, t + 0.5);
-            const g = AC.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(v, t + 0.004);
-            let tt = t + 0.01;
-            for (let i = 0; i < 9; i++) { tt += rnd(0.02, 0.06); g.gain.setValueAtTime(v * rnd(0.2, 1) * (1 - i / 11), tt); }
-            g.gain.exponentialRampToValueAtTime(0.001, tt + 0.25);
-            s.connect(f); f.connect(g); g.connect(bus); s.start(t); s.stop(tt + 0.3);
-        }
-        function thunder() {
-            if (!AC || muted) return;
-            crack(1.0); // claquement collé au flash
-            const bus = thunderBus(), t = AC.currentTime + rnd(0.1, 0.5), len = rnd(4.5, 6.5);
-            // grondement : bruit grave qui s'assombrit, par vagues irrégulières qui s'éteignent
-            const s = AC.createBufferSource(); s.buffer = noiseBuf(true); s.loop = true;
-            const f = AC.createBiquadFilter(); f.type = 'lowpass';
-            f.frequency.setValueAtTime(500, t); f.frequency.exponentialRampToValueAtTime(70, t + len);
-            const pan = AC.createStereoPanner(); pan.pan.value = rnd(-0.6, 0.6);
-            const g = AC.createGain(); g.gain.setValueAtTime(0.0001, t);
-            let tt = t, lvl = 1;
-            while (tt < t + len - 0.5) { g.gain.setTargetAtTime(7 * lvl * rnd(0.4, 1), tt, 0.12); tt += rnd(0.25, 0.7); lvl *= 0.86; }
-            g.gain.setTargetAtTime(0.0001, t + len - 1.2, 0.5);
-            s.connect(f); f.connect(pan); pan.connect(g); g.connect(bus); s.start(t); s.stop(t + len + 1);
-            // choc sourd dans les basses
-            const o = AC.createOscillator(); o.type = 'sine';
-            o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(28, t + 1.2);
-            const og = AC.createGain(); og.gain.setValueAtTime(0.0001, t);
-            og.gain.linearRampToValueAtTime(0.9, t + 0.05); og.gain.exponentialRampToValueAtTime(0.001, t + 1.4);
-            o.connect(og); og.connect(bus); o.start(t); o.stop(t + 1.5);
-        }
-        sndBtn.addEventListener('click', () => { startAudio(); setMuted(!muted); });
-        function enter(withSound) {
-            muted = !withSound; if (withSound) startAudio(); setMuted(muted);
-            document.getElementById('intro').classList.add('hide'); document.body.classList.remove('locked');
-            setTimeout(() => { document.getElementById('intro').style.display = 'none'; }, 950);
-        }
-        document.getElementById('enter-snd').addEventListener('click', () => enter(true));
-        document.getElementById('enter-mute').addEventListener('click', () => enter(false));
-        setMuted(true);
-
-        const capEl = document.getElementById('cap'); let capTick = 0;
-        function updateAtmos(t, dt) {
-            skyFlash = Math.max(0, skyFlash - dt * 5);
-            skyMat.uniforms.uTime.value = t; skyMat.uniforms.uFlash.value = skyFlash; waterMaterial.uniforms.uFlash.value = skyFlash;
-            boltMat.opacity = Math.max(0, boltMat.opacity - dt * 7);
-            rainSystem.position.set(camera.position.x, 0, camera.position.z);
-            if (windG) windG.gain.setTargetAtTime(0.5 + 0.35 * Math.sin(t * 0.35) + scrollProgress * 0.5, AC.currentTime, 0.4);
-            const w = waterMesh.position.y;
-            floaters.forEach((f, i) => {
-                const k = f.afloat > 0.3 ? f.r * (1 + 0.08 * Math.sin(t * 2 + f.ph)) * f.afloat : 0;
-                _p.set(f.x, w + waveH(f.x, f.z, t) + 0.06, f.z); _s.set(k, k, k);
-                foam.setMatrixAt(i, _m.compose(_p, _q, _s));
-            });
-            foam.instanceMatrix.needsUpdate = true;
-            if (++capTick % 6 === 0) {
-                camera.getWorldDirection(_fv);
-                capEl.textContent = `CAP ${Math.round((Math.atan2(_fv.x, -_fv.z) * 180 / Math.PI + 360) % 360)}° · ${Math.round(Math.asin(_fv.y) * 180 / Math.PI)}°`;
-            }
-        }
-
-        /* =========================================================================
-           6. PARCOURS CAMÉRA & CONTRÔLE PAR SCROLL
-           ========================================================================= */
-        // Points de cheminement cinématographique (Camera Spline Points)
-        const cameraTrack = [
-            { pos: new THREE.Vector3(0, 52, 90), target: new THREE.Vector3(0, 15, 0), waterLevel: 0.1 },
-            { pos: new THREE.Vector3(-45, 28, 40), target: new THREE.Vector3(-10, 6, 0), waterLevel: 2.8 },
-            { pos: new THREE.Vector3(30, 14, -20), target: new THREE.Vector3(0, 4, -40), waterLevel: 6.2 },
-            { pos: new THREE.Vector3(0, 9, 25), target: new THREE.Vector3(0, 8, -60), waterLevel: 10.5 }
-        ];
-
-        let scrollProgress = 0;
-        let targetScrollProgress = 0;
-
-        window.addEventListener('scroll', () => {
-            const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-            targetScrollProgress = Math.min(Math.max(window.scrollY / (maxScroll || 1), 0), 1);
-
-            // Gestion disparition indication initiale
-            if (window.scrollY > 80) {
-                document.getElementById('scroll-hint').style.opacity = '0';
-            } else {
-                document.getElementById('scroll-hint').style.opacity = '0.7';
-            }
-
-            // Gestion de l'affichage des panneaux d'étape
-            checkActivePanels();
-        });
-
-        function checkActivePanels() {
-            const steps = document.querySelectorAll('.step');
-            const triggerOffset = window.innerHeight * 0.6;
-
-            steps.forEach((step) => {
-                const rect = step.getBoundingClientRect();
-                const content = step.querySelector('.step-content');
-                if (rect.top < triggerOffset && rect.bottom > triggerOffset) {
-                    content.classList.add('active');
-                } else {
-                    content.classList.remove('active');
-                }
-            });
-        }
-
-        // Interpolation cubique de position caméra
-        function getSplineData(progress) {
-            const numSegments = cameraTrack.length - 1;
-            const p = progress * numSegments;
-            const index = Math.floor(p);
-            const t = p - index;
-
-            if (index >= numSegments) {
-                return cameraTrack[numSegments];
-            }
-
-            const p0 = cameraTrack[index];
-            const p1 = cameraTrack[index + 1];
-
-            // Lerp doux entre étapes
-            const currentPos = new THREE.Vector3().lerpVectors(p0.pos, p1.pos, t);
-            const currentTarget = new THREE.Vector3().lerpVectors(p0.target, p1.target, t);
-            const currentWater = THREE.MathUtils.lerp(p0.waterLevel, p1.waterLevel, t);
-
-            return { pos: currentPos, target: currentTarget, waterLevel: currentWater };
-        }
-
-        // Interaction souris pour parallax dynamique
-        let mouseX = 0;
-        let mouseY = 0;
-        window.addEventListener('mousemove', (e) => {
-            mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
-            mouseY = (e.clientY / window.innerHeight - 0.5) * 2;
-        });
-
-
-        // Regard libre : glisser avec la souris / flèches ← → (R ou bouton pour recentrer)
-        const look = { yaw: 0, pitch: 0, ty: 0, tp: 0, drag: false, x: 0, y: 0 };
-        const hintEl = document.getElementById('look-hint');
-        window.addEventListener('pointerdown', (e) => {
-            if (e.pointerType === 'touch' || e.button !== 0 || (e.target.closest && e.target.closest('.step-content, .hud, .look-hint'))) return;
-            look.drag = true; look.x = e.clientX; look.y = e.clientY; document.body.classList.add('grabbing');
-        });
-        window.addEventListener('pointermove', (e) => {
-            if (!look.drag) return;
-            look.ty += (e.clientX - look.x) * 0.0045;
-            look.tp = THREE.MathUtils.clamp(look.tp - (e.clientY - look.y) * 0.0035, -1.5, 1.5);
-            look.x = e.clientX; look.y = e.clientY;
-            hintEl.style.opacity = '0.45';
-        });
-        const stopDrag = () => { look.drag = false; document.body.classList.remove('grabbing'); };
-        window.addEventListener('pointerup', stopDrag);
-        window.addEventListener('pointercancel', stopDrag);
-        window.addEventListener('blur', stopDrag);
-        const recenter = () => { look.ty = 0; look.tp = 0; hintEl.style.opacity = '1'; };
-        document.getElementById('look-reset').addEventListener('click', recenter);
-        window.addEventListener('keydown', (e) => {
-            if (e.ctrlKey || e.metaKey || e.altKey) return;
-            const k = e.key.toLowerCase();
-            if (k === 'arrowup' || k === 'z') look.tp = Math.min(1.5, look.tp + 0.12);
-            else if (k === 'arrowdown' || k === 's') look.tp = Math.max(-1.5, look.tp - 0.12);
-            else if (k === 'arrowleft' || k === 'q') look.ty += 0.12;
-            else if (k === 'arrowright' || k === 'd') look.ty -= 0.12;
-            else if (k === 'r') recenter();
-            else return;
-            if (k.startsWith('arrow')) e.preventDefault();
-        });
-        const _dir = new THREE.Vector3(), _right = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
-
-        /* =========================================================================
-           7. EFFETS ATMOSPHÉRIQUES (ORAGE & ÉCLAIRS ALÉATOIRES)
-           ========================================================================= */
-        let nextLightningTime = 200;
-        function triggerLightning() {
-            skyFlash = 1; spawnBolt(); thunder();
-            flashOverlay.style.opacity = '0.85';
-            lightningLight.intensity = 15;
-            lightningLight.position.x = (Math.random() - 0.5) * 140;
-            lightningLight.position.z = (Math.random() - 0.5) * 140;
-
-            setTimeout(() => {
-                flashOverlay.style.opacity = '0';
-                lightningLight.intensity = 0;
-            }, 60);
-
-            // Double flash réaliste
-            if (Math.random() > 0.4) {
-                setTimeout(() => {
-                    flashOverlay.style.opacity = '0.6';
-                    skyFlash = 0.8; crack(0.55);
-                    lightningLight.intensity = 10;
-                    setTimeout(() => {
-                        flashOverlay.style.opacity = '0';
-                        lightningLight.intensity = 0;
-                    }, 40);
-                }, 110);
-            }
-        }
-
-        /* =========================================================================
-           8. BOUCLE D'ANIMATION À 60 FPS
-           ========================================================================= */
-        const clock = new THREE.Clock();
-        const currentCamTarget = new THREE.Vector3();
-
-        function animate() {
-            requestAnimationFrame(animate);
-
-            const dt = Math.min(clock.getDelta(), 0.05);
-            const elapsedTime = clock.elapsedTime;
-
-            // 1. Lissage inertiel du Scroll (Smooth Damping)
-            scrollProgress += (targetScrollProgress - scrollProgress) * 0.055;
-
-            // 2. Évaluation de la trajectoire
-            const spline = getSplineData(scrollProgress);
-
-            // Intégration du Parallaxe Souris doux
-            const parallaxX = mouseX * 2.5;
-            const parallaxY = -mouseY * 1.5 + (reduceMotion ? 0 : Math.sin(elapsedTime * 0.9) * 0.12);
-
-            camera.position.x += (spline.pos.x + parallaxX - camera.position.x) * 0.06;
-            camera.position.y += (spline.pos.y + parallaxY - camera.position.y) * 0.06;
-            camera.position.z += (spline.pos.z - camera.position.z) * 0.06;
-
-            currentCamTarget.lerp(spline.target, 0.08);
-            look.yaw += (look.ty - look.yaw) * 0.12;
-            look.pitch += (look.tp - look.pitch) * 0.12;
-            _dir.copy(currentCamTarget).sub(camera.position).applyAxisAngle(_up, look.yaw);
-            _right.crossVectors(_dir, _up).normalize();
-            const bp = Math.asin(_dir.y / _dir.length());
-            _dir.applyAxisAngle(_right, THREE.MathUtils.clamp(look.pitch, -1.5 - bp, 1.5 - bp));
-            camera.lookAt(_fv.copy(camera.position).add(_dir));
-
-            // 3. Montée du plan d'inondation
-            waterMesh.position.y += (spline.waterLevel - waterMesh.position.y) * 0.05;
-            waterMaterial.uniforms.uTime.value = elapsedTime;
-
-            updateFloaters(elapsedTime, dt);
-            updateAtmos(elapsedTime, dt);
-
-            // 4. Animation des précipitations
-            const positions = rainGeo.attributes.position.array;
-            for (let i = 0; i < RAIN_COUNT; i++) {
-                // Chute verticale avec léger angle de vent
-                positions[i * 3 + 1] -= rainVelocities[i] * 1.6;
-                positions[i * 3 + 0] -= 0.25; // Vent X
-
-                // Réapparition au-dessus de la scène ou réinitialisation sur la surface d'eau
-                if (positions[i * 3 + 1] < waterMesh.position.y) {
-                    positions[i * 3 + 1] = 110 + Math.random() * 20;
-                    positions[i * 3 + 0] = (Math.random() - 0.5) * 220;
-                }
-            }
-            rainGeo.attributes.position.needsUpdate = true;
-
-            // 5. Déclenchement stochastique des éclairs
-            nextLightningTime--;
-            if (nextLightningTime <= 0) {
-                triggerLightning();
-                nextLightningTime = Math.floor(250 + Math.random() * 450);
-            }
-
-            // 6. Mise à jour des compteurs HUD
-            const percentage = Math.min(Math.round(scrollProgress * 100), 100);
-            submersionLabel.innerText = `${percentage}%`;
-            gaugeFill.style.height = `${percentage}%`;
-            const lvl = percentage < 34 ? ['VERT', '#2ecc71'] : percentage < 67 ? ['ORANGE', '#f28c28'] : ['ROUGE', '#ff3b30'];
-            gaugeFill.style.background = lvl[1]; gaugeFill.style.boxShadow = `0 0 12px ${lvl[1]}`;
-            gaugeReadout.style.color = lvl[1]; gaugeReadout.innerHTML = `${percentage}%<small>${lvl[0]}</small>`;
-            elevationLabel.innerText = `+${waterMesh.position.y.toFixed(2)} m`;
-
-            // Rendu
-            renderer.render(scene, camera);
-        }
-
-        // Redimensionnement responsif
-        window.addEventListener('resize', onWindowResize, false);
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        // Lancement immédiat
-        onWindowResize();
-        animate();
-
-        } catch (e) {
-            console.error('Erreur initialisation Three.js:', e);
-            document.getElementById('webgl-canvas')?.remove();
-            document.getElementById('lightning-flash')?.remove();
-            document.querySelector('.vignette')?.remove();
-        }
-    </script>
-<script>if("serviceWorker"in navigator)addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}))</script>
+      }
+
+      loadHazards();
+      window.setInterval(loadHazards, 90_000);
+    })();
+  </script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-"""Centralized logging configuration for IntelliFlood."""
+"""Centralized logging configuration for MasterEarth."""
 
 import logging
 from contextvars import ContextVar

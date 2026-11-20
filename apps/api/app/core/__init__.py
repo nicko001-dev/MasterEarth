@@ -1,4 +1,4 @@
-"""Core application layer for IntelliFlood.
+"""Core application layer for MasterEarth.
 
 Houses cross-cutting concerns, application configuration, logging,
 error handling, and shared infrastructure utilities for the backend.

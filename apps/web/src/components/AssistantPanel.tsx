@@ -1,12 +1,23 @@
-import { FormEvent, useEffect, useState, useRef, useCallback } from "react";
+import { FormEvent, useEffect, useState, useRef, useCallback, useMemo } from "react";
 import {
   analyzeImage,
   askAssistant,
+  AssistantClientContext,
   AssistantResult,
   fetchAIStatus,
   AIStatus,
   localAssistantSummary,
+  normalizeAssistantResult,
 } from "../services/ai";
+import {
+  AssistantAction,
+  COMMAND_EXAMPLES,
+  describeAction,
+  resolveLocalCommand,
+} from "../services/assistantActions";
+import { answerLocalQuestion, situationSummary } from "../services/platformKnowledge";
+import { Place } from "../globe/places";
+import { formatCoordinates, UserPosition } from "../services/geolocation";
 import { AlertItem, SensorState, WeatherItem } from "../services/api";
 import { Icon } from "./Icon";
 
@@ -15,63 +26,29 @@ type Props = {
   sensors: SensorState[];
   alerts: AlertItem[];
   weather: WeatherItem[];
+  /** Contexte d'interface transmis au serveur (vue, onglet, couches…). */
+  clientContext?: AssistantClientContext;
+  /** Exécution des actions d'interface renvoyées par l'assistant. */
+  onActions?: (actions: AssistantAction[]) => void;
+  /** Lieux mondiaux, pour les commandes locales « va à … ». */
+  places?: readonly Place[];
+  userPosition?: UserPosition | null;
 };
 
-type Entry = { question: string; result: AssistantResult; error?: string; timestamp?: string };
+type Entry = { question: string; result: AssistantResult; error?: string; timestamp?: string; actions?: AssistantAction[] };
 
-/**
- * Génère une réponse vocale naturelle, directe et humaine
- * basée sur les données hydrométéorologiques réelles en mémoire.
- */
-function generateHydrologicalSpokenResponse(
-  query: string,
-  sensors: SensorState[],
-  alerts: AlertItem[],
-  weather: WeatherItem[],
-): string {
-  const q = query.toLowerCase();
-  const rainPoints = weather.filter(
-    (w) => (w.observed_precip_mm_h ?? w.modeled_precip_mm_h ?? 0) > 0,
-  );
-  const maxRain = weather.reduce(
-    (max, w) => Math.max(max, w.observed_precip_mm_h ?? w.modeled_precip_mm_h ?? 0),
-    0,
-  );
-  const strongestRain = weather.find(
-    (w) => (w.observed_precip_mm_h ?? w.modeled_precip_mm_h ?? 0) === maxRain && maxRain > 0,
-  );
-  const alertSensors = sensors.filter(
-    (s) => s.health_status === "online" && (s.alert_level === "red" || s.alert_level === "orange"),
-  );
+const nowLabel = () => new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
-  if (q.includes("pluie") || q.includes("météo") || q.includes("pleut") || q.includes("précipitation")) {
-    if (rainPoints.length === 0) {
-      return "D'après les relevés météorologiques en temps réel, aucune précipitation significative n'est détectée actuellement sur les zones surveillées du pays.";
-    }
-    const locText = strongestRain ? ` notamment vers ${strongestRain.name}` : "";
-    return `Il pleut actuellement sur ${rainPoints.length} point(s) du territoire, avec un pic d'intensité mesuré à ${maxRain.toFixed(1)} millimètres par heure${locText}.`;
-  }
-
-  if (q.includes("inondation") || q.includes("alerte") || q.includes("danger") || q.includes("niveau")) {
-    if (alertSensors.length === 0 && alerts.length === 0) {
-      return "Aucune alerte d'inondation majeure n'est active actuellement. Les niveaux d'eau sur les capteurs du réseau restent dans les seuils normaux.";
-    }
-    const critical = alertSensors.filter((s) => s.alert_level === "red");
-    if (critical.length > 0) {
-      return `Vigilance requise : ${critical.length} capteur(s) dépassent le seuil rouge d'inondation, en particulier vers ${critical[0].name}.`;
-    }
-    return `Situation sous surveillance : ${alertSensors.length} capteur(s) signalent un niveau orange de pré-alerte.`;
-  }
-
-  // Synthèse générale par défaut
-  if (rainPoints.length === 0 && alertSensors.length === 0) {
-    return `Situation calme sur le territoire : aucun capteur en alerte inondation et aucune pluie forte détectée sur les ${weather.length} stations surveillées.`;
-  }
-
-  return `Point de situation en direct : ${weather.length} stations météo suivies, ${rainPoints.length} en pluie avec un pic de ${maxRain.toFixed(1)} millimètres par heure, et ${alertSensors.length} capteur(s) sous vigilance inondation.`;
-}
-
-export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
+export function AssistantPanel({
+  token,
+  sensors,
+  alerts,
+  weather,
+  clientContext,
+  onActions,
+  places = [],
+  userPosition = null,
+}: Props) {
   const [message, setMessage] = useState("");
   const [mode, setMode] = useState<"answer" | "report">("answer");
   const [consent, setConsent] = useState(false);
@@ -100,6 +77,7 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
   const recognitionRef = useRef<any>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const speechTokenRef = useRef(0);
   const isLiveVoiceModeRef = useRef(isLiveVoiceMode);
   isLiveVoiceModeRef.current = isLiveVoiceMode;
   const busyRef = useRef(busy);
@@ -112,6 +90,72 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
   const animFrameRef = useRef<number | null>(null);
   const silenceTimeoutRef = useRef<number | null>(null);
   const spokenTextRef = useRef<string>("");
+
+  /**
+   * Contexte transmis au serveur : vue, onglet, couches, capteur sélectionné.
+   * La position de l'utilisateur est intentionnellement absente : elle reste
+   * dans le navigateur et sert uniquement aux réponses locales (« où suis-je »),
+   * conformément à la politique de confidentialité affichée.
+   */
+  const contextPayload = useMemo<AssistantClientContext | undefined>(() => {
+    if (!clientContext) return undefined;
+    return {
+      ...clientContext,
+      user_location: null,
+      layers: { ...clientContext.layers },
+    };
+  }, [clientContext]);
+
+  /** Actions d'interface d'une commande locale, avec retour visuel. */
+  const runLocalCommand = useCallback((text: string, speak: boolean): boolean => {
+    const command = resolveLocalCommand(text, { places, sensors, userPosition });
+    if (command) {
+      const result: AssistantResult = {
+        answer: command.answer,
+        mode: "offline_deterministic",
+        provider: null,
+        model: null,
+        sources: ["Commandes locales de l'interface"],
+        human_validation_required: true,
+        operational_decision: false,
+        limitations: ["Action d'interface uniquement : aucun calcul métier, aucune alerte déclenchée."],
+        actions: command.actions,
+        spoken: command.answer,
+      };
+      setEntries((current) => [
+        ...current,
+        { question: text, result, timestamp: nowLabel(), actions: command.actions },
+      ]);
+      onActions?.(command.actions);
+      if (speak) speakText(command.answer);
+      return true;
+    }
+    const local = answerLocalQuestion(text, {
+      sensors,
+      alerts,
+      weather,
+      offline: !isOnline,
+      position: userPosition,
+    });
+    if (local) {
+      const result: AssistantResult = {
+        answer: local.answer,
+        mode: "offline_deterministic",
+        provider: null,
+        model: null,
+        sources: ["Connaissance MasterEarth et données en mémoire"],
+        human_validation_required: true,
+        operational_decision: false,
+        limitations: ["Réponse locale déterministe, sans modèle IA et sans envoi réseau."],
+        actions: [],
+        spoken: local.answer,
+      };
+      setEntries((current) => [...current, { question: text, result, timestamp: nowLabel(), actions: [] }]);
+      if (speak) speakText(local.answer);
+      return true;
+    }
+    return false;
+  }, [places, sensors, alerts, weather, userPosition, onActions, isOnline]);
 
   useEffect(() => {
     const update = () => setIsOnline(navigator.onLine);
@@ -194,6 +238,15 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
       silenceTimeoutRef.current = null;
     }
 
+    // 1. Commande d'interface ou question sur la plateforme : réponse locale
+    // immédiate, sans consentement, sans réseau, sans modèle.
+    if (runLocalCommand(queryText, true)) {
+      setMessage("");
+      setVoiceStatus("idle");
+      setInterimTranscript("");
+      return;
+    }
+
     setBusy(true);
     setVoiceStatus("processing");
     setError(null);
@@ -213,11 +266,15 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
       // Essayer d'abord l'assistant en ligne si disponible et connecté
       if (isOnline && statusReady) {
         try {
-          entryResult = await askAssistant(token, queryText, "answer");
-          resultAnswer = entryResult.answer;
+          entryResult = normalizeAssistantResult(
+            await askAssistant(token, queryText, "answer", { clientContext: contextPayload }),
+          );
+          resultAnswer = entryResult.spoken ?? entryResult.answer;
+          if (entryResult.actions?.length) onActions?.(entryResult.actions);
         } catch {
-          // Si le modèle distant n'est pas prêt ou renvoie une erreur, basculer sur le moteur local intelligent
-          resultAnswer = generateHydrologicalSpokenResponse(queryText, sensors, alerts, weather);
+          // Si le modèle distant n'est pas prêt ou renvoie une erreur, basculer
+          // sur la synthèse locale déterministe.
+          resultAnswer = situationSummary({ sensors, alerts, weather, position: userPosition });
           entryResult = {
             answer: resultAnswer,
             mode: "offline_deterministic",
@@ -227,10 +284,12 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
             human_validation_required: true,
             operational_decision: false,
             limitations: ["Synthèse locale vocale instantanée."],
+            actions: [],
+            spoken: resultAnswer,
           };
         }
       } else {
-        resultAnswer = generateHydrologicalSpokenResponse(queryText, sensors, alerts, weather);
+        resultAnswer = situationSummary({ sensors, alerts, weather, position: userPosition });
         entryResult = {
           answer: resultAnswer,
           mode: "offline_deterministic",
@@ -240,6 +299,8 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
           human_validation_required: true,
           operational_decision: false,
           limitations: ["Mode vocal déterministe."],
+          actions: [],
+          spoken: resultAnswer,
         };
       }
 
@@ -248,7 +309,8 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
         {
           question: queryText,
           result: entryResult,
-          timestamp: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+          timestamp: nowLabel(),
+          actions: entryResult.actions ?? [],
         },
       ]);
       setMessage("");
@@ -256,67 +318,53 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
       if (resultAnswer) {
         speakText(resultAnswer);
       }
-    } catch (reason) {
-      const fallbackVoice = generateHydrologicalSpokenResponse(queryText, sensors, alerts, weather);
+    } catch {
+      const fallbackVoice = situationSummary({ sensors, alerts, weather, position: userPosition, offline: true });
       setEntries((current) => [
         ...current,
         {
           question: queryText,
           result: localAssistantSummary(sensors, alerts, weather, "answer", true),
-          timestamp: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+          timestamp: nowLabel(),
+          actions: [],
         },
       ]);
       speakText(fallbackVoice);
     } finally {
       setBusy(false);
     }
-  }, [isOnline, statusReady, token, sensors, alerts, weather]);
+  }, [isOnline, statusReady, token, sensors, alerts, weather, userPosition, contextPayload, onActions, runLocalCommand]);
 
   const speakText = useCallback((text: string, onEnd?: () => void) => {
-    if (!synthRef.current) {
+    const synth = synthRef.current;
+    if (!synth) {
       onEnd?.();
       return;
     }
-    // Nettoyer et réveiller le moteur de synthèse
-    synthRef.current.cancel();
-    if (synthRef.current.paused) {
-      synthRef.current.resume();
-    }
-
     const cleanSpeech = text
       .replace(/[*_#`~>]/g, "")
       .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
       .replace(/\s+/g, " ")
       .trim();
-
-    const utterance = new SpeechSynthesisUtterance(cleanSpeech);
-    utterance.lang = "fr-FR";
-    utterance.rate = speechRate;
-    utterance.pitch = 1.0;
-
-    if (selectedVoiceURI && availableVoices.length > 0) {
-      const chosen = availableVoices.find((v) => v.voiceURI === selectedVoiceURI);
-      if (chosen) utterance.voice = chosen;
+    if (!cleanSpeech) {
+      onEnd?.();
+      return;
     }
 
-    utteranceRef.current = utterance;
+    // Chromium ignore parfois un speak() émis dans le même tick qu'un cancel().
+    // On réveille le moteur puis on laisse un court délai avant de parler.
+    const token = ++speechTokenRef.current;
+    synth.cancel();
+    if (synth.paused) synth.resume();
+    setIsSpeaking(true);
+    setVoiceStatus("speaking");
 
-    // Watchdog de sécurité pour éviter le blocage de SpeechSynthesis dans Chromium
-    let watchdogTimer: number | null = window.setTimeout(() => {
-      if (synthRef.current?.speaking) {
-        synthRef.current.cancel();
-        setIsSpeaking(false);
-        setVoiceStatus("idle");
-      }
-    }, Math.max(12000, cleanSpeech.length * 90));
-
-    utterance.onstart = () => {
-      setIsSpeaking(true);
-      setVoiceStatus("speaking");
-    };
-
+    let finished = false;
+    let watchdog = 0;
     const finishSpeaking = () => {
-      if (watchdogTimer) clearTimeout(watchdogTimer);
+      if (finished || token !== speechTokenRef.current) return;
+      finished = true;
+      if (watchdog) clearTimeout(watchdog);
       setIsSpeaking(false);
       utteranceRef.current = null;
       setVoiceStatus("idle");
@@ -331,17 +379,52 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
       }
     };
 
-    utterance.onend = finishSpeaking;
-    utterance.onerror = finishSpeaking;
+    const speakNow = () => {
+      if (finished || token !== speechTokenRef.current) return;
+      try {
+        if (synth.paused) synth.resume();
+        const utterance = new SpeechSynthesisUtterance(cleanSpeech);
+        utterance.lang = "fr-FR";
+        utterance.rate = speechRate;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
 
-    try {
-      synthRef.current.speak(utterance);
-    } catch {
-      finishSpeaking();
-    }
-  }, [availableVoices, selectedVoiceURI, speechRate]);
+        // Les voix peuvent être chargées après le montage : on relit la liste
+        // au moment de parler et on privilégie une voix française.
+        const voices = synth.getVoices();
+        const chosen =
+          (selectedVoiceURI && voices.find((v) => v.voiceURI === selectedVoiceURI))
+          || voices.find((v) => v.lang.toLowerCase().startsWith("fr"));
+        if (chosen) utterance.voice = chosen;
+
+        utteranceRef.current = utterance;
+        utterance.onstart = () => {
+          setIsSpeaking(true);
+          setVoiceStatus("speaking");
+        };
+        utterance.onend = finishSpeaking;
+        utterance.onerror = finishSpeaking;
+
+        // Watchdog de sécurité pour éviter le blocage de SpeechSynthesis dans Chromium.
+        watchdog = window.setTimeout(() => {
+          if (!finished && synth.speaking) synth.cancel();
+          finishSpeaking();
+        }, Math.max(15000, cleanSpeech.length * 110));
+
+        synth.speak(utterance);
+      } catch {
+        finishSpeaking();
+      }
+    };
+
+    // 120 ms suffisent à Chromium pour traiter le cancel() précédent.
+    window.setTimeout(() => {
+      if (token === speechTokenRef.current) speakNow();
+    }, 120);
+  }, [selectedVoiceURI, speechRate]);
 
   const stopSpeaking = useCallback(() => {
+    speechTokenRef.current += 1;
     if (synthRef.current) synthRef.current.cancel();
     setIsSpeaking(false);
     utteranceRef.current = null;
@@ -492,29 +575,60 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
     return () => { active = false; };
   }, [token, isOnline]);
 
+  /**
+   * Aperçu de la commande saisie : si la phrase est une commande d'interface ou
+   * une question sur la plateforme, elle est exécutée localement et n'exige ni
+   * consentement ni fournisseur IA.
+   */
+  const localCommandPreview = useMemo(() => {
+    const text = message.trim();
+    if (!text) return null;
+    const command = resolveLocalCommand(text, { places, sensors, userPosition });
+    if (command) return command.intent;
+    return answerLocalQuestion(text, {
+      sensors,
+      alerts,
+      weather,
+      offline: !isOnline,
+      position: userPosition,
+    })?.intent ?? null;
+  }, [message, places, sensors, alerts, weather, userPosition, isOnline]);
+
   const send = async (event?: FormEvent) => {
     if (event) event.preventDefault();
     const msg = message.trim();
-    if (!msg || (isOnline && (!consent || !statusReady)) || busy) return;
+    if (!msg || busy) return;
+    // Commande d'interface ou question sur la plateforme : traitée localement,
+    // sans consentement ni transmission, même hors ligne.
+    if (runLocalCommand(msg, isLiveVoiceMode)) {
+      setMessage("");
+      setConsent(false);
+      return;
+    }
+    if (isOnline && (!consent || !statusReady)) return;
     stopListening();
     setBusy(true);
     setError(null);
     try {
-      const result = !isOnline
-        ? localAssistantSummary(sensors, alerts, weather, mode, true)
-        : await askAssistant(token, msg, mode);
+      const result = normalizeAssistantResult(
+        !isOnline
+          ? localAssistantSummary(sensors, alerts, weather, mode, true)
+          : await askAssistant(token, msg, mode, { clientContext: contextPayload }),
+      );
       setEntries((current) => [
         ...current,
         {
           question: msg,
           result,
-          timestamp: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+          timestamp: nowLabel(),
+          actions: result.actions ?? [],
         },
       ]);
+      if (result.actions?.length) onActions?.(result.actions);
       setMessage("");
 
       if (isLiveVoiceMode && result.answer) {
-        speakText(result.answer);
+        speakText(result.spoken ?? result.answer);
       }
     } catch (reason) {
       if (reason instanceof TypeError) {
@@ -523,7 +637,8 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
           {
             question: msg,
             result: localAssistantSummary(sensors, alerts, weather, mode, true),
-            timestamp: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+            timestamp: nowLabel(),
+            actions: [],
           },
         ]);
         setError("API injoignable. Une synthèse locale est affichée.");
@@ -545,7 +660,8 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
       {
         question: "Résumé local des données en mémoire",
         result,
-        timestamp: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+        timestamp: nowLabel(),
+        actions: [],
       },
     ]);
     if (isLiveVoiceMode && result.answer) {
@@ -553,8 +669,7 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
     }
   };
 
-  const sendImage = async () => {
-    if (!isOnline || !image || !imageConsent || !consent || !statusReady || busy) return;
+  const sendImage = async () => {    if (!isOnline || !image || !imageConsent || !consent || !statusReady || busy) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(image.type) || image.size > 4 * 1024 * 1024) {
       setError("Choisissez une image JPEG, PNG ou WebP de 4 Mio maximum.");
       return;
@@ -572,7 +687,7 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
         sources: ["Image fournie volontairement par l'utilisateur"],
         human_validation_required: true,
         operational_decision: false,
-        limitations: ["Analyse visuelle indicative; image non conservée par IntelliFlood."],
+        limitations: ["Analyse visuelle indicative; image non conservée par MasterEarth."],
       };
       setEntries((current) => [
         ...current,
@@ -796,18 +911,32 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
       <div className="ai-voice-bar">
         <button
           type="button"
-          className={`icon-button ${isListening && !isLiveVoiceMode ? "on" : ""}`}
+          className={`ai-dictate-button ${isListening && !isLiveVoiceMode ? "on" : ""}`}
           onClick={() => void startListening()}
-          disabled={busy || !isOnline || !statusReady || isListening}
-          title={isListening ? "Arrêter l'écoute" : "Parler à l'IA (cliquer pour dicter)"}
+          disabled={busy || !isOnline || isListening}
+          title={isListening ? "Arrêter l'écoute" : "Parler à l'assistant (commandes locales incluses)"}
         >
           <Icon name={isListening ? "mic-on" : "mic"} size={17} />
-          <span style={{ marginLeft: "6px", fontSize: "0.75rem" }}>
-            {isListening ? "Écoute en cours…" : "Dicter une question"}
+          <span className="ai-dictate-label">
+            {isListening ? "Écoute en cours…" : "Dicter une commande ou une question"}
           </span>
         </button>
         {isListening && <span className="ai-voice-status">Écoute… (dites votre question)</span>}
-        {isSpeaking && <span className="ai-voice-status">L'IA vous répond…</span>}
+        {isSpeaking && <span className="ai-voice-status">L'assistant vous répond…</span>}
+      </div>
+
+      <div className="ai-command-chips" aria-label="Exemples de commandes exécutables">
+        {COMMAND_EXAMPLES.map((example) => (
+          <button
+            key={example}
+            type="button"
+            className="ai-command-chip"
+            onClick={() => setMessage(example)}
+            title="Insérer cette commande"
+          >
+            {example}
+          </button>
+        ))}
       </div>
 
       <form className="ai-form" onSubmit={(event) => void send(event)}>
@@ -819,7 +948,7 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
             maxLength={2000}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
-            placeholder={isListening ? "Écoute en cours…" : "Ex. Résume les tendances observées et leurs limites."}
+            placeholder={isListening ? "Écoute en cours…" : "Ex. Va à Paris, affiche le radar, où suis-je ?"}
             disabled={busy || isListening}
             style={{ flex: 1 }}
           />
@@ -827,13 +956,18 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
             type="button"
             className={`icon-button ${isListening ? "on" : ""}`}
             onClick={() => void startListening()}
-            disabled={busy || !isOnline || !statusReady || isListening}
-            title="Parler à l'IA"
+            disabled={busy || !isOnline || isListening}
+            title="Parler à l'assistant"
             style={{ height: "fit-content", alignSelf: "flex-start", marginTop: "4px" }}
           >
             <Icon name={isListening ? "mic-on" : "mic"} size={18} />
           </button>
         </div>
+        {localCommandPreview && (
+          <p className="ai-local-preview" role="status">
+            <Icon name="check" size={13} /> Commande locale reconnue : elle agit directement sur la carte, sans envoi ni consentement.
+          </p>
+        )}
         <label htmlFor="ai-mode">Format</label>
         <select id="ai-mode" value={mode} onChange={(event) => setMode(event.target.value as "answer" | "report")}>
           <option value="answer">Réponse informative</option>
@@ -843,8 +977,11 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
           <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
           En ligne, j'autorise l'envoi de ma question, d'un agrégat capteurs/météo et d'extraits documentaires à l'un des fournisseurs indiqués. Pas de coordonnées, observations libres, identifiants ou médias.
         </label>
-        <button type="submit" disabled={!message.trim() || (isOnline && (!consent || !statusReady)) || busy || isListening}>
-          {busy ? "Traitement…" : isOnline ? "Envoyer la question" : "Répondre localement"}
+        <button
+          type="submit"
+          disabled={!message.trim() || (isOnline && (!consent || !statusReady) && !localCommandPreview) || busy || isListening}
+        >
+          {busy ? "Traitement…" : localCommandPreview ? "Exécuter la commande" : isOnline ? "Envoyer la question" : "Répondre localement"}
         </button>
         <button type="button" disabled={busy || isListening} onClick={showLocalSummary}>
           Résumé des données en mémoire — sans envoi
@@ -895,6 +1032,11 @@ export function AssistantPanel({ token, sensors, alerts, weather }: Props) {
             </small>
             {entry.result.sources.length > 0 && (
               <p className="ai-sources">Sources : {entry.result.sources.join("; ")}</p>
+            )}
+            {entry.actions && entry.actions.length > 0 && (
+              <p className="ai-actions">
+                <strong>Actions appliquées :</strong> {entry.actions.map(describeAction).join(" · ")}
+              </p>
             )}
             <small className="ai-warning">
               Information non décisionnelle; validation humaine requise. L'IA ne déclenche pas d'alerte.

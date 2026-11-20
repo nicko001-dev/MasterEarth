@@ -1,4 +1,4 @@
-# Intelligence Engine IntelliFlood
+# Intelligence Engine MasterEarth
 
 ## Capacités et limites
 
@@ -14,7 +14,7 @@ opérationnelle.
   anomalie statistique candidate, pas un incident confirmé ni une décision IA.
 - **Vision** : analyse facultative d'une photo sélectionnée par l'utilisateur,
   seulement avec un consentement distinct. JPEG/PNG/WebP jusqu'à 4 Mio;
-  IntelliFlood retire les métadonnées en réencodant l'image, la limite à
+  MasterEarth retire les métadonnées en réencodant l'image, la limite à
   2048 pixels de côté et ne la conserve pas. Elle est envoyée au fournisseur
   choisi pour l'analyse.
 - **Mode hors ligne** : résumé déterministe à partir des données déjà chargées
@@ -86,7 +86,10 @@ serveur transmet au fournisseur sélectionné :
 - la question saisie par l'utilisateur;
 - des statistiques agrégées de capteurs, alertes et météo, sans coordonnées,
   noms/codes de capteurs, identifiants d'alertes ou texte d'observations;
-- au maximum quatre passages documentaires pertinents.
+- au maximum quatre passages documentaires pertinents;
+- le catalogue produit compact et le contexte d'écran borné décrits ci-dessous
+  (vue, onglet, code de capteur sélectionné, centre de caméra, couches, langue,
+  état en ligne). La position de l'utilisateur n'est jamais transmise.
 
 Les adresses e-mail et les numéros de téléphone usuels sont rejetés par une
 validation préliminaire, mais celle-ci ne peut pas identifier toutes les données
@@ -100,7 +103,149 @@ Une image n'est incluse que si elle est sélectionnée et si l'utilisateur coche
 une seconde case dédiée. Elle n'est ni stockée dans la base ni ajoutée à
 l'historique local.
 
-## API et intégration d'IntelliFlood World
+## Assistant intégré à la plateforme
+
+### Connaissance du produit
+
+Le catalogue produit `apps/api/app/domain/platform_catalog.py` décrit, en
+français et de façon structurée, le produit réel : `product`, `pages`, `maps`,
+`layers`, `data_sources`, `simulation`, `alerts`, `runtime`, `ai`, `accounts`,
+`privacy` et `limits`. Il fait foi pour les questions « comment fonctionne
+MasterEarth ? ».
+`catalog_summary()` en produit une version compacte (moins de 3 500 caractères)
+injectée dans chaque prompt ; `catalog_text()` fournit un rendu court pour les
+réponses déterministes.
+
+Ce plafond ne bride plus la connaissance produit : `catalog_detail(question)`
+sélectionne, selon les mots de la question, les sections **complètes** du
+catalogue qui la concernent (couches et cartes, sources, simulation, alertes,
+assistant, comptes, confidentialité, limites) et les joint sous la clé
+`platform_detail` du prompt, dans un budget distinct de 4 000 caractères. Quand
+une section dépasse le budget restant, ses listes sont réduites par paliers
+(`_fit`) plutôt que la section supprimée ; si même la version la plus courte ne
+tient pas, elle n'est pas jointe. Une question hors sujet produit un prompt
+identique à l'ancien : le mécanisme ne coûte rien quand il ne sert pas.
+`_messages` ne modifie jamais le contexte d'origine (copie superficielle). Aucun chiffre de performance, aucune date de livraison
+et aucune fonction absente du dépôt n'y figurent ; les éléments non décidés
+restent marqués `À DÉFINIR` (conservation des données, permissions métier
+fines, validation des seuils). Le catalogue précise aussi les licences : le
+radar RainViewer est gratuit pour un usage personnel, éducatif et communautaire
+à petite échelle, avec attribution obligatoire et sans garantie de
+disponibilité ; un usage commercial doit être négocié auprès du fournisseur.
+Le trafic aérien provient d'OpenSky Network sous **CC BY-NC 4.0** : attribution
+obligatoire, usage non commercial et quota à respecter. Les positions entre deux
+observations sont interpolées et signalées comme telles ; aucun flux mondial de
+véhicules routiers en direct n'est promis.
+
+Le catalogue décrit notamment : les sept pages, la carte 2D Leaflet (fonds
+OpenStreetMap, Esri, NASA ; radar RainViewer, frontières Natural Earth, noms
+GeoNames, voile jour/nuit et trafic aérien) et le globe 3D Cesium mondial
+(imagerie, relief facultatif, radar animé, voile jour/nuit calculé avec
+lumières NASA, frontières, noms de villes, pluie 3D, avions OpenSky,
+circulation et flux mondiaux animés, simulation et localisation) ;
+l'application séparée **MasterEarth World** (`apps/world`) et son trafic
+routier simulé ou tiers, jamais présenté comme une observation mondiale en
+direct ; les couches activables (`radar`, `rain`, `flood`, `labels`, `borders`,
+`night`, `traffic`, `aircraft`, `sensors`, `weather`, `alerts`) ; les sources de
+données et leurs licences, dont `/api/v1/weather/global-rain` (198 points de
+sondage, précipitation courante, affinage et lieux nommés) et `/api/v1/live/aircraft/global` (600 appareils
+répartis) ; la simulation indicative sur MNT ; les seuils provisoires ; les
+comptes et rôles ; la confidentialité ; l'exécution (`runtime`) ; les limites
+connues.
+
+La section `runtime`, sélectionnée par `catalog_detail()` sur les questions de
+disponibilité, de statistiques ou de démarrage, documente la tolérance aux
+pannes partielles (sources interrogées séparément, dernières valeurs connues
+conservées, « Hors ligne » réservé à une API entièrement injoignable), la
+distinction entre compteurs des zones affichées et scan de pluie mondial, la
+règle « donnée indisponible ≠ zéro », le basculement régional/mondial du trafic
+aérien, les flux de mobilité modélisés et `start.bat health` (11 endpoints).
+
+La recherche documentaire lit les `DOCUMENT*.md` du dossier `Conception/` avec
+tolérance de casse, pour que la même lecture fonctionne sous Windows et Linux.
+
+### Contexte d'écran transmis
+
+La requête `POST /api/v1/ai/assistant` peut inclure un objet `client_context`
+borné, validé par `apps/api/app/schemas/ai.py` (`extra="forbid"` à tous les
+niveaux) puis re-borné par le service avant tout prompt :
+
+| Champ | Type | Borne |
+|---|---|---|
+| `view` | `"map"` ou `"globe"` | — |
+| `tab` | chaîne | 32 caractères maximum |
+| `selected_sensor` | chaîne | 64 caractères maximum |
+| `center` | `{lat, lon, height?}` | latitude ±90, longitude ±180, hauteur finie |
+| `layers` | `{nom: booléen}` | 20 entrées maximum, clés de 64 caractères |
+| `user_location` | `{lat, lon}` | accepté par le schéma mais **retiré** avant le prompt |
+| `online` | booléen | `true` par défaut |
+| `locale` | `"fr"` ou `"en"` | `fr` par défaut |
+
+Le service tronque les chaînes à 64 caractères, ignore les champs inconnus ou
+mal typés, rejette les nombres non finis et écrase le contexte client avec la
+version nettoyée. Ce contexte est présenté au modèle comme une donnée non
+fiable, jamais comme une instruction.
+
+La **position de l'utilisateur n'est jamais envoyée** : le schéma tolère
+`user_location` pour rester compatible avec les clients existants, mais le
+service l'écarte systématiquement du contexte transmis au fournisseur. La
+question « où suis-je ? » est résolue dans le navigateur, avec la position
+locale, sans envoi de coordonnées. Le centre de caméra, lui, décrit seulement la
+zone regardée et est transmis comme contexte d'affichage. En 3D, il vient de la
+caméra ; en 2D, il est calculé depuis l'emprise visible, y compris lorsqu'elle
+traverse l'antiméridien.
+
+### Actions d'interface (liste blanche)
+
+La requête accepte `allow_actions` (booléen, `true` par défaut). Quand il est
+actif, le modèle doit terminer sa réponse par un unique bloc clôturé
+` ```actions ` contenant `{"actions": [...], "spoken": "..."}`. Le serveur
+extrait ce bloc, le retire du texte affiché et valide chaque action
+individuellement avec Pydantic :
+
+| `type` | Clés |
+|---|---|
+| `fly_to` | `lat`, `lon`, `height` (nullable), `label` (nullable) |
+| `set_view` | `view` : `map` ou `globe` |
+| `open_tab` | `tab` : `carte`, `capteurs`, `alertes`, `meteo`, `observations`, `ia`, `gestion` |
+| `select_sensor` | `code` |
+| `set_layer` | `layer` : `radar`, `rain`, `flood`, `labels`, `borders`, `night`, `traffic`, `aircraft`, `sensors`, `weather`, `alerts` ; `enabled` |
+| `set_basemap` | `basemap` : `osm`, `esri`, `nasa` |
+| `locate_user` | — |
+| `open_simulation` | `mode` : `level`, `rain`, `sensor` ; `lat`, `lon` (nullables) |
+| `zoom` | `direction` : `in` ou `out` |
+| `reset_view` | — |
+
+Le client applique `open_simulation` en ouvrant les paramètres avec le scénario
+et, si elles sont fournies, les coordonnées demandées : le calcul n'est jamais
+lancé automatiquement.
+
+Au plus six actions sont renvoyées. Une action invalide, inconnue, avec clés
+supplémentaires ou coordonnées non finies est ignorée sans erreur, et le bloc
+est retiré même quand `allow_actions` est faux. Le mode `report` autorise
+également les actions. La réponse contient toujours `actions` (liste vide si
+aucune) et `spoken`.
+
+### Voix
+
+`spoken` est une version courte de la réponse (600 caractères maximum) destinée
+à la synthèse vocale du navigateur ; à défaut, le serveur utilise les 400
+premiers caractères de la réponse nettoyée. Le mode hors ligne fournit aussi un
+`spoken` déterministe de 300 caractères maximum.
+
+### Limites
+
+- Le modèle ne doit jamais inventer de coordonnées pour un lieu réel : seules
+  les coordonnées du contexte, du catalogue ou des extraits sont utilisables.
+- Les actions sont purement visuelles et réversibles : elles déplacent ou
+  configurent l'interface, sans calcul, sans alerte, sans écriture en base.
+  L'IA ne déclenche et ne confirme aucune alerte.
+- Une action reste visible par l'utilisateur ; le client peut l'ignorer ou la
+  refuser. Le serveur ne garantit pas qu'elle sera exécutée.
+- Aucun prompt, contexte client ou coordonnée n'est journalisé ; seuls le type
+  d'action, l'identité et le fournisseur/modèle sont audités.
+
+## API et intégration de MasterEarth World
 
 - `GET /api/v1/ai/providers` — statut sans secret, administrateur.
 - `GET /api/v1/ai/status` — fournisseurs actifs et notes de confidentialité,
@@ -108,15 +253,16 @@ l'historique local.
   consentement et l'envoi.
 - `POST /api/v1/ai/providers/{id}/catalog` — catalogue gratuit, administrateur.
 - `PUT` / `DELETE /api/v1/ai/providers/{id}` — configuration, administrateur.
-- `POST /api/v1/ai/assistant` — réponse ou rapport, utilisateur connecté,
-  consentement obligatoire.
+- `POST /api/v1/ai/assistant` — réponse ou rapport, consentement obligatoire ;
+  accepte `client_context` (contexte d'écran borné) et `allow_actions`, et
+  renvoie `actions` et `spoken` en plus de la réponse.
 - `POST /api/v1/ai/vision` — analyse d'image, utilisateur connecté et double
   consentement.
 - `GET /api/v1/ai/anomalies` — candidats déterministes d'anomalie.
 
-Le tableau de bord web et le module IntelliFlood de `apps/world` utilisent le
+Le tableau de bord web et le module MasterEarth de `apps/world` utilisent le
 même endpoint assistant, les mêmes fournisseurs configurés et le même jeton
-IntelliFlood. Le module ne transmet pas de question si le statut des
+MasterEarth. Le module ne transmet pas de question si le statut des
 destinataires ne peut pas être vérifié et réinitialise le consentement après
 chaque tentative. Il ne stocke aucune deuxième clé de modèle. L'assistant vocal
 Realtime et le résumé HUD préexistants demeurent toutefois des fonctions

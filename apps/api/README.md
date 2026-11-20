@@ -1,6 +1,6 @@
-# IntelliFlood API
+# MasterEarth API
 
-FastAPI backend pour le projet IntelliFlood.
+FastAPI backend pour le projet MasterEarth.
 
 ## Architecture de référence (M0.3)
 
@@ -63,7 +63,7 @@ app/
    ```
 
    Variables supportées :
-   - `APP_NAME` : nom de l'application (défaut: `IntelliFlood API`)
+   - `APP_NAME` : nom de l'application (défaut: `MasterEarth API`)
    - `API_VERSION` : version de l'API (défaut: `0.1.0`)
    - `APP_ENV` : environnement d'exécution (défaut: `development`)
    - `API_HOST` : hôte d'écoute (défaut: `127.0.0.1`)

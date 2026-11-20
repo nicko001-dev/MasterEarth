@@ -59,18 +59,18 @@ export function Login({ onLogged, onCancel }: Props) {
     >
       <div className="login-card" role="dialog" aria-modal="true" aria-labelledby="login-title">
         <aside className="login-aside" aria-hidden="true">
-          <img className="login-logo" src="/brand/intelliflood-logo.png" alt="" />
-          <p>Prévenir, protéger et agir face aux inondations urbaines.</p>
+          <img className="login-logo" src="/brand/masterearth-logo.png" alt="" />
+          <p>Veiller sur la Terre, aléa par aléa, en temps réel.</p>
           <ul>
-            <li>Surveillance des capteurs et de la météo</li>
-            <li>Simulations indicatives issues du MNT</li>
+            <li>Surveillance mondiale des aléas et des capteurs</li>
+            <li>Simulations indicatives pour tous les phénomènes</li>
             <li>Observations terrain vérifiées</li>
           </ul>
           <small>Les données publiques et les crédits restent visibles sans compte.</small>
         </aside>
         <form className="login-form" onSubmit={(event) => void submit(event)}>
           <button type="button" className="modal-close" onClick={onCancel} aria-label="Fermer" disabled={busy}>×</button>
-          <img className="login-form-logo" src="/brand/intelliflood-logo.png" alt="" />
+          <img className="login-form-logo" src="/brand/masterearth-logo.png" alt="" />
           <h2 id="login-title">{creatingAccount ? "Créer un compte citoyen" : "Connexion"}</h2>
           <p className="muted">
             {creatingAccount

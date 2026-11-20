@@ -287,5 +287,62 @@ export function createFloodCanvas(
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
   context.drawImage(source, 0, 0, canvas.width, canvas.height);
+  drawFloodOutline(context, depthCm, run.rows, run.cols, factor, northUp);
   return canvas;
+}
+
+/**
+ * Trace le contour de l'eau sur la texture suréchantillonnée.
+ *
+ * Sans ce contour, l'agrandissement du raster MNT produit un dégradé qui paraît
+ * flou dès qu'on zoome. Le tracé suit la limite réelle des cellules inondées
+ * (et non une approximation) : le bord de la zone reste net à l'écran.
+ */
+function drawFloodOutline(
+  context: CanvasRenderingContext2D,
+  depthCm: Uint16Array,
+  rows: number,
+  cols: number,
+  factor: number,
+  northUp: boolean,
+): void {
+  const water = new Uint8Array(rows * cols);
+  for (let row = 0; row < rows; row += 1) {
+    const destRow = northUp ? rows - 1 - row : row;
+    for (let col = 0; col < cols; col += 1) {
+      water[destRow * cols + col] = depthCm[row * cols + col] > 0 ? 1 : 0;
+    }
+  }
+  const isWater = (row: number, col: number) =>
+    row >= 0 && row < rows && col >= 0 && col < cols && water[row * cols + col] === 1;
+
+  context.save();
+  context.strokeStyle = "rgba(214, 240, 255, 0.92)";
+  context.lineWidth = Math.max(1, factor >= 4 ? 2 : 1);
+  context.beginPath();
+  for (let row = 0; row < rows; row += 1) {
+    const y = row * factor;
+    for (let col = 0; col < cols; col += 1) {
+      if (!isWater(row, col)) continue;
+      const x = col * factor;
+      if (!isWater(row - 1, col)) {
+        context.moveTo(x, y);
+        context.lineTo(x + factor, y);
+      }
+      if (!isWater(row + 1, col)) {
+        context.moveTo(x, y + factor);
+        context.lineTo(x + factor, y + factor);
+      }
+      if (!isWater(row, col - 1)) {
+        context.moveTo(x, y);
+        context.lineTo(x, y + factor);
+      }
+      if (!isWater(row, col + 1)) {
+        context.moveTo(x + factor, y);
+        context.lineTo(x + factor, y + factor);
+      }
+    }
+  }
+  context.stroke();
+  context.restore();
 }

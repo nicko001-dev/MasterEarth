@@ -66,6 +66,42 @@ def test_sensor_mode_needs_bankfull_then_uses_latest_level(client):
     assert r.status_code == 201 and r.json()["stats"]["max_depth_m"] == pytest.approx(0.6, abs=0.05)  # (120-60) cm au-dessus du bord
 
 
+def test_hazard_simulation_requires_auth_and_stays_indicative(client):
+    body = {
+        "hazard": "earthquake",
+        "lat": 35.6,
+        "lon": 139.7,
+        "name": "Test",
+        "magnitude": 6.8,
+        "depth_km": 20,
+    }
+    assert client.post("/api/v1/simulations/hazard", json=body).status_code == 401
+    response = client.post(
+        "/api/v1/simulations/hazard",
+        headers=login_headers(client, "viewer"),
+        json=body,
+    )
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["hazard"] == "earthquake"
+    assert result["label"] == "Séisme"
+    assert result["model"].startswith("masterearth-indicative")
+    assert result["disclaimer"]
+    assert result["severity"] in {"low", "moderate", "high", "extreme"}
+    assert result["metrics"] and result["timeline"]
+    assert result["input"]["magnitude"] == 6.8
+    assert all("basis" in metric for metric in result["metrics"])
+    # Un aléa inconnu est refusé par le schéma, jamais simulé par défaut.
+    invalid = client.post(
+        "/api/v1/simulations/hazard",
+        headers=login_headers(client, "viewer"),
+        json={**body, "hazard": "meteor"},
+    )
+    assert invalid.status_code == 422
+    # Le calcul ne crée aucune exécution d'inondation ni écriture en base.
+    assert client.get("/api/v1/simulations", headers=login_headers(client, "viewer")).json() == []
+
+
 def test_dem_failure_is_reported_not_crashed(client, monkeypatch):
     def boom(*a):
         raise TimeoutError("réseau")

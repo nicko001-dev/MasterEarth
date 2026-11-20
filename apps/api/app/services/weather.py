@@ -14,10 +14,7 @@ from app.config import settings
 from app.domain.models import Sensor, WeatherObservation
 from app.domain.weather import RainThresholds, WeatherPoint, rain_risk, summarize
 from app.infrastructure.weather import open_meteo, openweather
-from app.services.weather_grid import (
-    GRID_SPACING_KM,
-    national_grid_points,
-)
+from app.services.weather_sampling import anchored_sample_points, anchored_status
 
 log = logging.getLogger(__name__)
 Provider = Callable[[float, float], list[WeatherPoint]]
@@ -53,7 +50,7 @@ def _all_points(db: Session) -> list[tuple[str, float, float]]:
         from geoalchemy2.shape import to_shape
         p = to_shape(sensor.location)
         points.setdefault(point_key(p.y, p.x), (sensor.name, round(p.y, 2), round(p.x, 2)))
-    for name, lat, lon in national_grid_points():
+    for name, lat, lon in anchored_sample_points():
         points.setdefault(point_key(lat, lon), (name, lat, lon))
     return list(points.values())
 
@@ -115,9 +112,9 @@ def refresh(
     openweather_ok, openweather_failed = [], []
     api_key = settings.weather_openweather_api_key.strip()
     if api_key:
-        grid_points = set(national_grid_points())
+        sample_points = set(anchored_sample_points())
         for name, lat, lon in points:
-            if (name, lat, lon) in grid_points:
+            if (name, lat, lon) in sample_points:
                 continue
             try:
                 rows += store(
@@ -275,6 +272,37 @@ def summary(db: Session, now: datetime | None = None) -> list[dict]:
     return sorted(result, key=lambda r: (r["name"], r["source"]))
 
 
+def _viewport_sampling() -> dict:
+    """Réglages de la vue mondiale, importés localement pour éviter un cycle."""
+    from app.services import weather_viewport
+
+    return {
+        "spacing_km": weather_viewport.DEFAULT_SPACING_KM,
+        "max_points": weather_viewport.MAX_POINTS,
+        "max_bbox_area_km2": weather_viewport.MAX_BBOX_AREA_KM2,
+    }
+
+
+def coverage_status() -> dict:
+    """Portée réelle de la couverture météo : mondiale, plus des points ancrés.
+
+    La plateforme n'est pas limitée à un pays : les points de sondage mondiaux
+    sont calculés pour l'emprise regardée, partout sur le globe. Seuls des points
+    isolés, les icônes et le radar sont rendus. Les points ancrés ne représentent
+    que la zone du réseau déployé, seuls points historisés.
+    """
+    return {
+        "scope": "worldwide",
+        "worldwide_sampling": _viewport_sampling(),
+        "anchored_points": anchored_status(),
+        "description": (
+            "Sondages mondiaux calculés à la demande pour l'emprise visible, "
+            "dans le monde entier, sous forme de points isolés ; les points ancrés "
+            "couvrent la zone du réseau déployé et restent les seuls historisés."
+        ),
+    }
+
+
 def source_status(db: Session) -> dict:
     now = datetime.now(timezone.utc)
     latest = dict(
@@ -303,11 +331,7 @@ def source_status(db: Session) -> dict:
         }
 
     return {
-        "coverage": {
-            "country": "Côte d'Ivoire",
-            "grid_spacing_km": GRID_SPACING_KM,
-            "grid_points": len(national_grid_points()),
-        },
+        "coverage": coverage_status(),
         "refresh_interval_minutes": settings.weather_refresh_minutes,
         "providers": [
             provider_state(open_meteo.SOURCE, settings.weather_enabled),

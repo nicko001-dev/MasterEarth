@@ -1,4 +1,4 @@
-"""SQLAlchemy models for IntelliFlood database infrastructure.
+"""SQLAlchemy models for MasterEarth database infrastructure.
 
 This module contains base infrastructure models. Domain-specific models
 (flood events, sensors, alerts, users, etc.) will be added in their

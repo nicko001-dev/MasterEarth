@@ -9,27 +9,35 @@ import {
 } from "../services/simulation";
 import { Icon } from "../components/Icon";
 
+/**
+ * Configuration demandée par l'assistant. Elle préremplit le panneau sans
+ * lancer de calcul : l'utilisateur garde la main sur le lancement.
+ */
+export type SimulationRequest = {
+  mode: FloodInput["mode"];
+  lat?: number | null;
+  lon?: number | null;
+  timestamp: number;
+};
+
 type Props = {
   position?: "left" | "right";
   token?: string;
   sensors: SensorState[];
   run: FloodRun | null;
   frameIndex: number;
+  request?: SimulationRequest | null;
   onLogin: () => void;
   onRunChange: (run: FloodRun | null) => void;
   onFrameChange: (index: number) => void;
+  /** Signale que la demande a été appliquée : elle ne sera pas rejouée au remontage. */
+  onRequestHandled?: () => void;
 };
 
 type PanelTab = "parametres" | "resultats" | "analyse";
 
-const INITIAL_LAT = 5.359; // Cocody center
-const INITIAL_LON = -3.985;
-const COCODY_PRESET = { lat: 5.359, lon: -3.985, name: "Cocody" };
-const ABIDJAN_PRESET = { lat: 5.32, lon: -4.02, name: "Plateau (Abidjan centre)" };
-const YOPOUGON_PRESET = { lat: 5.35, lon: -4.09, name: "Yopougon" };
-const ABBO_PRESET = { lat: 5.42, lon: -4.02, name: "Abobo" };
-
-const PRESETS = [COCODY_PRESET, ABIDJAN_PRESET, YOPOUGON_PRESET, ABBO_PRESET];
+const INITIAL_LAT = 20;
+const INITIAL_LON = 0;
 const DEFAULT_EXPANDED = typeof window === "undefined" || window.innerWidth >= 960;
 
 export function SimulationPanel({
@@ -38,9 +46,11 @@ export function SimulationPanel({
   sensors,
   run,
   frameIndex,
+  request = null,
   onLogin,
   onRunChange,
   onFrameChange,
+  onRequestHandled,
 }: Props) {
   const [expanded, setExpanded] = useState(DEFAULT_EXPANDED);
   const [tab, setTab] = useState<PanelTab>("parametres");
@@ -54,17 +64,24 @@ export function SimulationPanel({
   const [radius, setRadius] = useState(1500);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [preset, setPreset] = useState<string>("Cocody");
 
   useEffect(() => {
     if (run) setTab("resultats");
   }, [run]);
 
-  const applyPreset = (p: typeof PRESETS[0]) => {
-    setLat(p.lat);
-    setLon(p.lon);
-    setPreset(p.name);
-  };
+  // Préremplissage demandé par l'assistant : ouvre les paramètres, choisit le
+  // scénario et, si fournies, applique les coordonnées. Aucun calcul n'est lancé.
+  useEffect(() => {
+    if (!request) return;
+    setExpanded(true);
+    setTab("parametres");
+    setMode(request.mode);
+    if (request.lat != null && request.lon != null) {
+      setLat(request.lat);
+      setLon(request.lon);
+    }
+    onRequestHandled?.();
+  }, [request, onRequestHandled]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -172,30 +189,19 @@ export function SimulationPanel({
                   </label>
                 ) : (
                   <>
-                    <div className="zone-presets">
-                      <strong>Zone d'étude</strong>
-                      <div className="preset-chips">
-                        {PRESETS.map((p) => (
-                          <button type="button" key={p.name} className={preset === p.name ? "on" : ""} onClick={() => applyPreset(p)}>
-                            {p.name}
-                          </button>
-                        ))}
-                      </div>
+                    <p className="muted simulation-worldwide-hint">
+                      Choisissez librement un point sur Terre : aucun préréglage régional n'est imposé.
+                    </p>
+                    <div className="simulation-coordinates">
+                      <label className="field">
+                        <span>Latitude</span>
+                        <input type="number" step="any" min={-90} max={90} required value={lat} onChange={(event) => setLat(Number(event.target.value))} />
+                      </label>
+                      <label className="field">
+                        <span>Longitude</span>
+                        <input type="number" step="any" min={-180} max={180} required value={lon} onChange={(event) => setLon(Number(event.target.value))} />
+                      </label>
                     </div>
-
-                    <details className="advanced">
-                      <summary>Coordonnées précises</summary>
-                      <div className="simulation-coordinates">
-                        <label className="field">
-                          <span>Latitude</span>
-                          <input type="number" step="any" min={-90} max={90} required value={lat} onChange={(event) => setLat(Number(event.target.value))} />
-                        </label>
-                        <label className="field">
-                          <span>Longitude</span>
-                          <input type="number" step="any" min={-180} max={180} required value={lon} onChange={(event) => setLon(Number(event.target.value))} />
-                        </label>
-                      </div>
-                    </details>
                   </>
                 )}
 

@@ -19,7 +19,7 @@ Date : 31 octobre 2026. Les releases M0.1 à M2.1 restent intactes (`Releases/`)
 - Clé d'API simple en attendant les comptes, rôles, organisations et l'audit (M2.3+).
 
 ## Non réalisé (jalons suivants)
-Authentification et permissions, organisations, observations humaines et photos, météo, notifications SMS/push, monde 3D IntelliFlood World (M5), synchronisation hors ligne des écritures (M7), simulation (M10), durcissement production (M11).
+Authentification et permissions, organisations, observations humaines et photos, météo, notifications SMS/push, monde 3D MasterEarth World (M5), synchronisation hors ligne des écritures (M7), simulation (M10), durcissement production (M11).
 
 ## Ajout M3 — météo (31 octobre 2026)
 Collecte Open-Meteo, saisie de bulletins officiels (SODEXAM…), risque pluie, onglet « Météo » et anneaux sur la carte. Détails, limites et licences : `docs/WEATHER.md`. Migration `20261031_1400_weather`. 65 tests réussis sur PostgreSQL/PostGIS réel.
@@ -32,5 +32,5 @@ Collecte Open-Meteo, saisie de bulletins officiels (SODEXAM…), risque pluie, o
 ## Ajout M10 + IoT + monde 3D (1er novembre 2026)
 - **Simulation d'inondation** (`/api/v1/simulations/flood`) : niveau d'eau, pluie ou capteur ; MNT Terrarium (cache disque, utilisable hors ligne) ; remplissage de cuvette avec connectivité ; zone « possible » (erreur du MNT) ; montée progressive en plusieurs images ; exécutions tracées. **Modèle simplifié, non hydrodynamique** — voir `app/domain/flood_model.py`.
 - **IoT** : adaptateurs générique / The Things Network / ChirpStack (`/api/v1/ingest/{adapter}`), pont MQTT, firmware de référence ESP32 + JSN-SR04T (non testé sur matériel), profil Docker `iot`.
-- **Monde 3D** (`apps/world`) : application dérivée et renommée « IntelliFlood World » ; module `src/intelliflood/` (capteurs, météo, alertes, pluie 3D, simulation d'inondation). Node 24 requis. Voir `apps/world/NOTICE-INTELLIFLOOD.md` pour l'attribution et les licences.
+- **Monde 3D** (`apps/world`) : application dérivée et renommée « MasterEarth World » ; module `src/intelliflood/` (capteurs, météo, alertes, pluie 3D, simulation d'inondation). Node 24 requis. Voir `apps/world/NOTICE-INTELLIFLOOD.md` pour l'attribution et les licences.
 - Migrations : `20261031_1800_simulation`. 87 tests réussis sur PostgreSQL/PostGIS réel.

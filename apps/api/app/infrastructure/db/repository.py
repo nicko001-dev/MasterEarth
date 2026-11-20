@@ -1,4 +1,4 @@
-"""Base repository pattern for data access in IntelliFlood.
+"""Base repository pattern for data access in MasterEarth.
 
 This module provides a minimal, extensible base repository that encapsulates
 common database operations. Domain-specific repositories (M2+) will extend

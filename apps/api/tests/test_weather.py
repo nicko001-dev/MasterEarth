@@ -18,7 +18,7 @@ from app.main import app
 from tests.conftest_auth import cleanup, login_headers
 from app.services import weather as svc
 from app.services import simulation as simulation_svc
-from app.services import weather_grid
+from app.services import weather_sampling
 
 T = w.RainThresholds()
 NOW = datetime(2026, 10, 31, 12, 0, tzinfo=timezone.utc)
@@ -122,13 +122,13 @@ def test_open_meteo_fetch_many_limits_batch_size_and_keeps_later_batches(monkeyp
     assert results[-1].points[0].precip_mm == 0
 
 
-def test_national_weather_grid_is_inside_boundary_and_about_50_km_apart():
-    points = weather_grid.national_grid_points()
-    boundary = weather_grid._boundary()
+def test_anchored_sample_points_are_inside_boundary_and_about_50_km_apart():
+    points = weather_sampling.anchored_sample_points()
+    boundary = weather_sampling.anchored_boundary()
 
     assert 120 <= len(points) <= 140
-    assert all(boundary.covers(weather_grid.Point(lon, lat)) for _, lat, lon in points)
-    assert all(name.startswith("Maillage 50 km") for name, _, _ in points)
+    assert all(boundary.covers(weather_sampling.Point(lon, lat)) for _, lat, lon in points)
+    assert all(name.startswith("Sondage 50 km") for name, _, _ in points)
     distances = [
         abs(lon - other_lon) * 111.32 * math.cos(math.radians(lat))
         for index, (_, lat, lon) in enumerate(points)
@@ -219,7 +219,7 @@ def test_refresh_uses_batched_open_meteo_results_and_reports_failed_points(monke
     assert stored == [("open-meteo", "Zone 1")]
 
 
-def test_weather_source_status_reports_national_grid_coverage():
+def test_weather_source_status_reports_worldwide_and_anchored_coverage():
     class EmptyDb:
         def execute(self, *_args):
             return self
@@ -228,10 +228,14 @@ def test_weather_source_status_reports_national_grid_coverage():
             return []
 
     status = svc.source_status(EmptyDb())
+    coverage = status["coverage"]
 
-    assert status["coverage"]["country"] == "Côte d'Ivoire"
-    assert status["coverage"]["grid_spacing_km"] == 50
-    assert status["coverage"]["grid_points"] == 129
+    assert coverage["scope"] == "worldwide"
+    assert coverage["worldwide_sampling"]["max_points"] == 60
+    assert coverage["worldwide_sampling"]["max_bbox_area_km2"] == 510_100_000
+    assert coverage["anchored_points"]["region"] == "Côte d'Ivoire (réseau déployé)"
+    assert coverage["anchored_points"]["spacing_km"] == 50
+    assert coverage["anchored_points"]["points"] == 129
 
 
 try:

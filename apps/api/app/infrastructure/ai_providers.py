@@ -236,7 +236,7 @@ def complete(
     }
     headers = _headers(api_key)
     if provider_id == "openrouter":
-        headers["X-Title"] = "IntelliFlood"
+        headers["X-Title"] = "MasterEarth"
     try:
         response = httpx.post(
             f"{provider.base_url}/chat/completions",

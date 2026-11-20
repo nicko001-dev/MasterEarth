@@ -16,6 +16,8 @@ node_modules/
 dist/
 build/
 .vite/
+# Dossiers de verification du build de production (npx vite build --outDir ...)
+apps/web/.build-check*/
 
 # Environment
 .env
@@ -36,6 +38,14 @@ htmlcov/
 *.sqlite
 *.sqlite3
 postgres-data/
+# Cache de génération des données géographiques mondiales (voir scripts/build_geo_data.py)
+scripts/.geo-cache/
 
 # Logs
 *.log
+
+# Diagnostic temporaire local
+.tmpdiag/
+
+# Donnees d outillage local (WorkBuddy)
+.workbuddy-ai/

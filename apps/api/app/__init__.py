@@ -1,1 +1,1 @@
-"""IntelliFlood API application package."""
+"""MasterEarth API application package."""

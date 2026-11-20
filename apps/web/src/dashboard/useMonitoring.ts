@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertItem, SensorState, WeatherItem, WeatherStatus, fetchAlerts, fetchSensors, fetchWeather, fetchWeatherStatus } from "../services/api";
+import {
+  AlertItem,
+  SensorState,
+  WeatherItem,
+  WeatherStatus,
+  fetchAlerts,
+  fetchHealth,
+  fetchSensors,
+  fetchWeather,
+  fetchWeatherStatus,
+} from "../services/api";
 import { AutomaticFloodsResponse, fetchAutomaticFloods } from "../services/simulation";
 
 const KEY = "intelliflood.monitoring.v1";
@@ -15,6 +25,17 @@ export interface LiveWeatherMetrics {
 }
 
 interface Snapshot { sensors: SensorState[]; alerts: AlertItem[]; weather: WeatherItem[]; weatherStatus: WeatherStatus | null; automaticFloods: AutomaticFloodsResponse | null; updatedAt: string }
+
+/** Résultat d'une source : la valeur ou son erreur, jamais une exception propagée. */
+type Settled<T> = { value: T } | { error: unknown };
+
+function settle<T>(promise: Promise<T>): Promise<Settled<T>> {
+  return promise.then((value) => ({ value })).catch((error: unknown) => ({ error }));
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
 
 function withoutDemoData(snapshot: Snapshot): Snapshot {
   const isDemoSensor = (sensor: SensorState) =>
@@ -71,7 +92,17 @@ function readCache(): Snapshot | null {
   }
 }
 
-/** Charge capteurs et alertes ; en cas d'échec réseau, reprend les dernières données connues (hors ligne). */
+/**
+ * Charge capteurs, alertes, météo et impacts automatiques.
+ *
+ * Chaque source est indépendante : si une seule route échoue (401, 503, base
+ * momentanément indisponible…), les autres continuent de s'afficher et les
+ * dernières valeurs connues de la source défaillante restent visibles. Le mode
+ * « Hors ligne » n'est activé que lorsque **l'API entière** est injoignable,
+ * jamais pour une panne partielle. C'est la santé de `/health` qui fait foi,
+ * avec un repli sur « au moins une source a répondu » si le proxy bloque le
+ * chemin `/health`.
+ */
 export function useMonitoring() {
   const cached = readCache();
   const [data, setData] = useState<Snapshot>(cached ?? { sensors: [], alerts: [], weather: [], weatherStatus: null, automaticFloods: null, updatedAt: "" });
@@ -81,6 +112,7 @@ export function useMonitoring() {
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [weatherError, setWeatherError] = useState<string | null>(null);
+  const [dataError, setDataError] = useState<string | null>(null);
   const [automaticFloodError, setAutomaticFloodError] = useState<string | null>(null);
   const [liveDate, setLiveDate] = useState<Date>(() => new Date());
   const [secondsSinceLastUpdate, setSecondsSinceLastUpdate] = useState<number>(0);
@@ -89,28 +121,38 @@ export function useMonitoring() {
   const refresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const [sensors, alerts, weatherResult, statusResult, automaticResult] = await Promise.all([
-        fetchSensors(),
-        fetchAlerts(),
-        fetchWeather().then((value) => ({ value })).catch((error: unknown) => ({ error })),
-        fetchWeatherStatus().then((value) => ({ value })).catch((error: unknown) => ({ error })),
-        fetchAutomaticFloods().then((value) => ({ value })).catch((error: unknown) => ({ error })),
+      const [health, sensorsResult, alertsResult, weatherResult, statusResult, automaticResult] = await Promise.all([
+        settle(fetchHealth()),
+        settle(fetchSensors()),
+        settle(fetchAlerts()),
+        settle(fetchWeather()),
+        settle(fetchWeatherStatus()),
+        settle(fetchAutomaticFloods()),
       ]);
-      const snap = withoutDemoData({
-        ...dataRef.current,
-        sensors,
-        alerts,
-        updatedAt: new Date().toISOString(),
-      });
+
+      const sources = [sensorsResult, alertsResult, weatherResult, statusResult, automaticResult];
+      const succeeded = sources.filter((result) => "value" in result).length;
+      // Une seule réponse suffit à prouver que le backend est joignable.
+      const apiReachable = "value" in health || succeeded > 0;
+      setOffline(!apiReachable);
+
+      // On conserve systématiquement les dernières valeurs connues : une panne
+      // ne doit jamais effacer la carte, les statistiques ou les couches 3D.
+      const snap: Snapshot = { ...dataRef.current };
       const errors: string[] = [];
-      if ("value" in weatherResult) {
-        snap.weather = weatherResult.value.filter(
-          (item) => !(item.source_kind === "weather_model" && item.name.startsWith("Démo · Caniveau ")),
-        );
-      }
-      else errors.push(weatherResult.error instanceof Error ? weatherResult.error.message : "Données météo indisponibles.");
+      const dataErrors: string[] = [];
+
+      if ("value" in sensorsResult) snap.sensors = sensorsResult.value;
+      else dataErrors.push(`Capteurs : ${errorMessage(sensorsResult.error, "source indisponible")}`);
+      if ("value" in alertsResult) snap.alerts = alertsResult.value;
+      else dataErrors.push(`Alertes : ${errorMessage(alertsResult.error, "source indisponible")}`);
+
+      if ("value" in weatherResult) snap.weather = weatherResult.value;
+      else errors.push(`Données météo indisponibles (${errorMessage(weatherResult.error, "source indisponible")}).`);
+
       if ("value" in statusResult) snap.weatherStatus = statusResult.value;
-      else errors.push(statusResult.error instanceof Error ? statusResult.error.message : "État des sources météo indisponible.");
+      else errors.push(`État des sources météo indisponible (${errorMessage(statusResult.error, "source indisponible")}).`);
+
       if ("value" in automaticResult) {
         const automaticFloods = withoutDemoData({
           ...snap,
@@ -120,14 +162,25 @@ export function useMonitoring() {
           snap.automaticFloods = automaticFloods;
         }
       }
-      setAutomaticFloodError("value" in automaticResult ? null : automaticResult.error instanceof Error ? automaticResult.error.message : "Impacts automatiques indisponibles.");
-      dataRef.current = snap;
-      setData(snap);
-      setSecondsSinceLastUpdate(0);
+      setAutomaticFloodError("value" in automaticResult ? null : errorMessage(automaticResult.error, "Impacts automatiques indisponibles."));
+      setDataError(dataErrors.length ? dataErrors.join(" ") : null);
+
+      // L'horodatage ne progresse que si au moins une donnée fraîche est arrivée.
+      if (succeeded > 0) {
+        snap.updatedAt = new Date().toISOString();
+        setSecondsSinceLastUpdate(0);
+      }
+      // Le filtrage anti-démonstration s'applique au snapshot final, donc
+      // aussi aux réponses fraîches (et pas seulement au cache relu au démarrage).
+      const cleaned = withoutDemoData(snap);
+      dataRef.current = cleaned;
+      setData(cleaned);
       setWeatherError(errors.length ? errors.join(" ") : null);
-      setOffline(false);
-      try { localStorage.setItem(KEY, JSON.stringify(snap)); } catch { /* stockage plein ou indisponible */ }
+      if (succeeded > 0) {
+        try { localStorage.setItem(KEY, JSON.stringify(cleaned)); } catch { /* stockage plein ou indisponible */ }
+      }
     } catch {
+      // Sécurité : même une erreur inattendue ne doit pas effacer les données.
       setOffline(true);
     } finally {
       setLoading(false);
@@ -182,6 +235,7 @@ export function useMonitoring() {
     loading,
     isRefreshing,
     weatherError,
+    dataError,
     automaticFloodError,
     liveDate,
     secondsSinceLastUpdate,

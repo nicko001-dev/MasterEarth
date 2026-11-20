@@ -1,4 +1,4 @@
-"""Database engine and session management for IntelliFlood.
+"""Database engine and session management for MasterEarth.
 
 This module provides the SQLAlchemy engine, session factory, and FastAPI
 dependency injection for database sessions. It is designed to be imported

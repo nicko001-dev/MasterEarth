@@ -52,7 +52,7 @@ test('a panel page from one server process is refused by another without a share
   assert.equal(refused.result.isError, true);
   assert.match(
     refused.result.content[0].text,
-    /Only the IntelliFlood World panel may make this request/,
+    /Only the MasterEarth World panel may make this request/,
   );
 });
 

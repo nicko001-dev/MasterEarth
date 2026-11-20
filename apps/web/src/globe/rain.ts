@@ -45,10 +45,10 @@ float fbm(vec2 p) {
   return value;
 }
 
-// Une couche de gouttes : cellules fines et hautes dont la position, la
+// Une couche de gouttes : traits fins et hauts dont la position, la
 // longueur et l'opacité varient. Casser cette régularité évite l'aspect
-// « grille » d'un simple motif répété. La hauteur des cellules est relative
-// au rideau pour que les traits gardent la bonne longueur à l'écran.
+// de motif répété. La hauteur des traits est relative au rideau pour que
+// les gouttes gardent la bonne longueur à l'écran.
 float drops(vec2 uv, float cols, float rows, float shaftLen, float speed, float density, float slant, float seed) {
   vec2 q = vec2((uv.x + uv.y * slant) * cols, uv.y / max(shaftLen, 0.001) * rows);
   q.y += u_time * speed;
@@ -56,7 +56,7 @@ float drops(vec2 uv, float cols, float rows, float shaftLen, float speed, float 
   vec2 f = fract(q);
   float on = step(1.0 - density, hash(cell + seed));
   // Chaque goutte a sa propre inclinaison et sa propre largeur : sans cela,
-  // toutes les stries sont parallèles et le rideau ressemble à une grille.
+  // toutes les stries sont parallèles et le rideau paraît trop régulier.
   float tilt = (hash(cell + seed + 71.0) - 0.5) * 0.55;
   float x = f.x - 0.2 - 0.6 * hash(cell + seed + 13.0) + (f.y - 0.5) * tilt;
   float width = smoothstep(0.22 + 0.10 * hash(cell + seed + 89.0), 0.03, abs(x));
@@ -143,20 +143,17 @@ void main() {
   col = mix(col, vec3(0.40, 0.55, 0.72), 0.26 * veil);
   col += vec3(0.76, 0.87, 1.0) * r * (0.55 + 0.95 * k);
 
-  // Zone violette au sol : délimite précisément où il pleut.
-  // Le disque est centré sur le point au sol (u_ground) avec le rayon de la zone.
-  float rainGroundEdge = 1.0 - smoothstep(0.85, 1.15, groundDist);
-  float rainGroundBorder = smoothstep(0.80, 0.90, groundDist) * (1.0 - smoothstep(1.10, 1.20, groundDist));
-  // Bruit de surface pour casser la régularité du disque
+  // Zone pluvieuse au sol : simple voile très doux. La délimitation nette est
+  // désormais dessinée par une ellipse vectorielle (trait franc à tout zoom),
+  // et non par ce dégradé écran qui devenait flou en s'agrandissant.
+  float rainGroundEdge = 1.0 - smoothstep(0.55, 1.0, groundDist);
   float groundNoise = fbm(v_textureCoordinates * 18.0 + vec2(u_time * 0.02, 0.0));
-  float violetAlpha = rainGroundEdge * intensity * 0.28 * (0.7 + 0.3 * groundNoise);
+  float violetAlpha = rainGroundEdge * intensity * 0.16 * (0.65 + 0.35 * groundNoise);
   vec3 violetCol = vec3(0.45, 0.0, 0.65);
   col = mix(col, violetCol, violetAlpha);
-  // Bordure violette plus marquée sur le contour de la zone
-  col = mix(col, vec3(0.55, 0.1, 0.80), rainGroundBorder * intensity * 0.40);
 
   // Zones inondées : bleu dont l'intensité croît avec la profondeur.
-  // Le bleu est appliqué via l'overlay de la grille MNT (GroundPrimitive),
+  // Le bleu est appliqué via l'overlay de la surface du MNT (GroundPrimitive),
   // mais le shader ajoute un halo subtil autour de la zone d'impact.
   float floodAlpha = smoothstep(0.0, 0.5, u_flood_depth);
   vec3 floodShallow = vec3(0.40, 0.65, 1.0);  // bleu clair

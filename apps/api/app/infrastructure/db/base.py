@@ -1,4 +1,4 @@
-"""SQLAlchemy declarative base and metadata for IntelliFlood."""
+"""SQLAlchemy declarative base and metadata for MasterEarth."""
 
 from sqlalchemy.orm import DeclarativeBase
 

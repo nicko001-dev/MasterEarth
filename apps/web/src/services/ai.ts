@@ -1,4 +1,5 @@
 import { config } from "../config";
+import { AssistantAction, parseAssistantActions } from "./assistantActions";
 
 export interface AIProviderModel {
   id: string;
@@ -34,6 +35,28 @@ export interface AssistantResult {
   operational_decision: false;
   limitations: string[];
   requested_mode?: "answer" | "report";
+  /** Actions d'interface validées, exécutées par la plateforme. */
+  actions?: AssistantAction[];
+  /** Version courte destinée à la synthèse vocale. */
+  spoken?: string;
+}
+
+/**
+ * Contexte d'interface transmis à l'assistant : il sait ce que l'utilisateur
+ * regarde (vue, onglet, capteur sélectionné, couches actives). La position de
+ * l'utilisateur n'y figure jamais : elle reste dans le navigateur et n'est
+ * transmise ni à l'API ni à un fournisseur IA (`user_location` est toujours
+ * null dans les requêtes).
+ */
+export interface AssistantClientContext {
+  view: "map" | "globe";
+  tab: string;
+  selected_sensor: string | null;
+  center: { lat: number; lon: number; height: number | null } | null;
+  layers: Record<string, boolean>;
+  user_location: { lat: number; lon: number } | null;
+  online: boolean;
+  locale: "fr" | "en";
 }
 
 async function request<T>(
@@ -56,7 +79,17 @@ async function request<T>(
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data?.detail ?? data?.error?.message ?? `Erreur ${response.status}`);
+    // FastAPI renvoie soit une chaîne, soit une liste d'erreurs de validation.
+    const detail = data?.detail;
+    const message = Array.isArray(detail)
+      ? detail
+          .map((item: { msg?: string; loc?: unknown[] }) =>
+            item?.msg ? `${(item.loc ?? []).slice(1).join(".")}: ${item.msg}`.replace(/^: /, "") : JSON.stringify(item))
+          .join(" · ")
+      : detail ?? data?.error?.message ?? `Erreur ${response.status}`;
+    const error = new Error(String(message));
+    (error as Error & { status?: number }).status = response.status;
+    throw error;
   }
   return data as T;
 }
@@ -104,13 +137,29 @@ export const removeAIProvider = (token: string, providerId: string) =>
     "DELETE",
   );
 
-export const askAssistant = (token: string | undefined, message: string, mode: "answer" | "report") =>
+export const askAssistant = (
+  token: string | undefined,
+  message: string,
+  mode: "answer" | "report",
+  options: { clientContext?: AssistantClientContext; allowActions?: boolean } = {},
+) =>
   request<AssistantResult>("/api/v1/ai/assistant", token, "POST", {
     message,
     mode,
     surface: "web",
     external_consent: true,
+    allow_actions: options.allowActions ?? true,
+    ...(options.clientContext ? { client_context: options.clientContext } : {}),
   });
+
+/** Normalise la réponse : actions validées côté client, texte parlé de repli. */
+export function normalizeAssistantResult(result: AssistantResult): AssistantResult {
+  return {
+    ...result,
+    actions: parseAssistantActions(result.actions),
+    spoken: typeof result.spoken === "string" && result.spoken.trim() ? result.spoken : result.answer,
+  };
+}
 
 export async function analyzeImage(
   token: string | undefined,

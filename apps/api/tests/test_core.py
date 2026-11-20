@@ -446,7 +446,7 @@ def test_non_regression_health_endpoint(client: TestClient) -> None:
     """Ensure GET /health maintains its exact M0.1/M1 contract."""
     resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok", "service": "IntelliFlood API"}
+    assert resp.json() == {"status": "ok", "service": "MasterEarth API"}
 
 
 def test_non_regression_api_root_endpoint(client: TestClient) -> None:
@@ -454,7 +454,7 @@ def test_non_regression_api_root_endpoint(client: TestClient) -> None:
     resp = client.get("/api/v1")
     assert resp.status_code == 200
     payload = resp.json()
-    assert payload["name"] == "IntelliFlood API"
+    assert payload["name"] == "MasterEarth API"
     assert payload["version"] == "v1"
     assert payload["status"] == "running"
     assert payload["app_env"] in ["development", "test", "production"]

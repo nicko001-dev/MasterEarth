@@ -1,4 +1,4 @@
-# IntelliFlood — Infrastructure de Données (M1)
+# MasterEarth — Infrastructure de Données (M1)
 
 Ce document décrit l'infrastructure de données mise en place au jalon **M1** : PostgreSQL, PostGIS, SQLAlchemy et Alembic. Il détaille l'architecture, la configuration d'environnement, le démarrage local, la gestion des migrations ainsi que les bonnes pratiques et limites opérationnelles.
 
@@ -6,7 +6,7 @@ Ce document décrit l'infrastructure de données mise en place au jalon **M1** :
 
 ## 1. Rôle des composants
 
-| Composant | Rôle dans IntelliFlood |
+| Composant | Rôle dans MasterEarth |
 |-----------|------------------------|
 | **PostgreSQL** | Base de données relationnelle principale, garantissant le stockage persistant, transactionnel et intègre des données du système. |
 | **PostGIS** | Extension spatiale native pour PostgreSQL. Fournit les types géométriques et géographiques (`geometry`, `geography`), les index spatiaux (R-Tree / GiST) et les fonctions SIG requises pour les zones inondables, capteurs, tronçons et analyses spatiales. |

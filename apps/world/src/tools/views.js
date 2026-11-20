@@ -1,5 +1,5 @@
 /**
- * Suggested views: the IntelliFlood World view that shows a tool's answer, and
+ * Suggested views: the MasterEarth World view that shows a tool's answer, and
  * the link that opens it when the app's address is known.
  */
 

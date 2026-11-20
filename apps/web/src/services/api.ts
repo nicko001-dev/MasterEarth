@@ -141,3 +141,92 @@ export interface WeatherStatus {
 
 export const fetchWeather = () => getJson<WeatherItem[]>("/api/v1/weather");
 export const fetchWeatherStatus = () => getJson<WeatherStatus>("/api/v1/weather/status");
+
+/** Couverture météo mondiale calculée à la demande pour l'emprise visible. */
+export interface WeatherViewportResponse {
+  generated_at: string;
+  bbox: { west: number; south: number; east: number; north: number };
+  spacing_km: number;
+  points: WeatherItem[];
+  degraded: boolean;
+  failed_points?: number;
+  attribution: string;
+  limitations: string[];
+}
+
+export async function fetchWeatherViewport(bounds: {
+  west: number;
+  south: number;
+  east: number;
+  north: number;
+}): Promise<WeatherViewportResponse> {
+  const params = new URLSearchParams({
+    west: bounds.west.toFixed(3),
+    south: bounds.south.toFixed(3),
+    east: bounds.east.toFixed(3),
+    north: bounds.north.toFixed(3),
+  });
+  const response = await fetch(`${config.apiBaseUrl}/api/v1/weather/viewport?${params.toString()}`);
+  if (!response.ok) throw new Error(`Couverture météo mondiale indisponible (${response.status}).`);
+  const payload = (await response.json()) as WeatherViewportResponse;
+  return { ...payload, points: Array.isArray(payload.points) ? payload.points : [] };
+}
+
+/**
+ * Scan des précipitations courantes sur des points répartis dans le monde entier.
+ *
+ * ``available`` distingue une donnée manquante d'un vrai zéro : quand le
+ * fournisseur échoue, ``rain_points`` vaut null et l'interface doit afficher
+ * « indisponible » plutôt que « 0 point en pluie ».
+ */
+export interface GlobalRainPlace {
+  name: string;
+  detail: string;
+  street: string | null;
+  city: string | null;
+  country: string | null;
+  lat: number;
+  lon: number;
+  precip_mm_h: number;
+  /** Niveau de risque déterministe, valable partout dans le monde. */
+  risk_level?: "green" | "orange" | "red";
+  precision: "street" | "district" | "locality" | "coordinates";
+  distance_km: number | null;
+  named: boolean;
+  attribution?: string;
+}
+
+export interface GlobalRainResponse {
+  generated_at: string;
+  scope: "worldwide";
+  available: boolean;
+  /** Dernière mesure valide servie faute de donnée fraîche (jamais inventée). */
+  stale?: boolean;
+  /** Âge en secondes de la mesure au moment de la réponse. */
+  age_seconds?: number;
+  /** Provenance du scan (hôte principal ou de repli Open-Meteo). */
+  source?: string | null;
+  sampled_points: number;
+  valid_points: number;
+  failed_points: number;
+  rain_points: number | null;
+  rain_fraction: number | null;
+  max_precip_mm_h: number | null;
+  wettest: Array<{ name: string; lat: number; lon: number; precip_mm_h: number }>;
+  /** Zones arrosées affinées puis nommées (rue / quartier / localité). */
+  rain_places?: GlobalRainPlace[];
+  degraded: boolean;
+  attribution: string;
+  attribution_url?: string;
+  license?: string;
+  limitations: string[];
+}
+
+export async function fetchGlobalRain(
+  fetcher: typeof fetch = fetch,
+): Promise<GlobalRainResponse> {
+  // `fetcher` est injectable pour les tests et les diagnostics hors navigateur.
+  const response = await fetcher(`${config.apiBaseUrl}/api/v1/weather/global-rain`);
+  if (!response.ok) throw new Error(`Scan de pluie mondial indisponible (${response.status}).`);
+  return (await response.json()) as GlobalRainResponse;
+}

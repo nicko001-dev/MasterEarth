@@ -9,7 +9,7 @@ def test_system_service_health() -> None:
     health = system_service.get_health()
     assert isinstance(health, HealthResponse)
     assert health.status == "ok"
-    assert health.service == "IntelliFlood API"
+    assert health.service == "MasterEarth API"
 
 
 def test_system_service_root_info() -> None:

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Renders the home-screen and favicon rasters from `public/logo.svg`.
+// Renders the home-screen and favicon rasters from `public/logo.png`.
 //
 // Re-run after changing the logo: `node scripts/generate-icons.mjs`. The output
 // is committed, because the install icons have to exist in a plain `vite build`
@@ -13,11 +13,11 @@ const REPO_ROOT = path.resolve(
   fileURLToPath(new URL('.', import.meta.url)),
   '..',
 );
-const LOGO = path.join(REPO_ROOT, 'public', 'logo.svg');
+const LOGO = path.join(REPO_ROOT, 'public', 'logo.png');
 const OUT_DIR = path.join(REPO_ROOT, 'public', 'icons');
 
 /** `--bg-dark` from src/ui/styles/foundation.css, so the tile matches the app. */
-const BACKGROUND = '#0a0a0f';
+const BACKGROUND = '#030b18';
 
 /**
  * Fraction of the canvas the mark is allowed to occupy.
@@ -26,7 +26,7 @@ const BACKGROUND = '#0a0a0f';
  * square, so its mark stays well inside that circle; the other icons are shown
  * as drawn and only need optical breathing room.
  */
-const INSET = { normal: 0.78, maskable: 0.54 };
+const INSET = { normal: 1, maskable: 0.86 };
 
 const TARGETS = [
   { file: 'icon-32.png', size: 32, inset: INSET.normal },

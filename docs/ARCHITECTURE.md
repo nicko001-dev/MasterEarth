@@ -1,6 +1,6 @@
-# IntelliFlood — Architecture Interne de Référence (M0.3)
+# MasterEarth — Architecture Interne de Référence (M0.3)
 
-Ce document formalise l'architecture interne de base du projet **IntelliFlood**, établie lors du jalon **M0.3**. Il constitue le guide de référence obligatoire pour tout futur agent ou développeur intervenant sur le repository.
+Ce document formalise l'architecture interne de base du projet **MasterEarth**, établie lors du jalon **M0.3**. Il constitue le guide de référence obligatoire pour tout futur agent ou développeur intervenant sur le repository.
 
 ---
 
@@ -279,8 +279,8 @@ L'assistant est informatif : alertes, seuils et simulations ne dépendent pas du
 modèle. En l'absence de réseau ou de modèle, un résumé local déterministe est
 clairement différencié d'une réponse IA.
 
-Le panneau IntelliFlood de `apps/world` réutilise la même API, le même catalogue
-et les mêmes identifiants IntelliFlood. Il n'y a pas de deuxième magasin de clés
+Le panneau MasterEarth de `apps/world` réutilise la même API, le même catalogue
+et les mêmes identifiants MasterEarth. Il n'y a pas de deuxième magasin de clés
 IA. Les services vocaux et HUD préexistants dans `apps/world` restent
 indépendants et ne reçoivent pas automatiquement le contexte hydrologique. Voir
 [`AI_ENGINE.md`](AI_ENGINE.md) pour le paramétrage, la confidentialité et les

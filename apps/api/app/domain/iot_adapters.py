@@ -1,6 +1,6 @@
 """Adaptateurs d'entrée IoT : normalisent des charges utiles de plateformes diverses en (code, rafale en cm, horodatage).
 
-Le code du capteur IntelliFlood doit être utilisé comme nom d'appareil dans la plateforme source (convention).
+Le code du capteur MasterEarth doit être utilisé comme nom d'appareil dans la plateforme source (convention).
 Chaque plateforme doit envoyer une distance mesurée (cm) ou une rafale `samples_cm`.
 """
 

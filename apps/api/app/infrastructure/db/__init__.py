@@ -1,4 +1,4 @@
-"""Database infrastructure for IntelliFlood."""
+"""Database infrastructure for MasterEarth."""
 
 from app.infrastructure.db.base import Base
 from app.infrastructure.db.models import BaseModel

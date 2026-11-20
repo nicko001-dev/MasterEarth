@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { AlertItem, SensorState, WeatherItem, WeatherStatus } from "../services/api";
+import { AlertItem, GlobalRainResponse, SensorState, WeatherItem, WeatherStatus } from "../services/api";
+import { formatAgeSeconds } from "./useGlobalRain";
 import {
   AutomaticFloodsResponse,
   bboxAreaKm2,
@@ -25,6 +26,11 @@ type Props = {
   weather: WeatherItem[];
   weatherError?: string | null;
   weatherStatus?: WeatherStatus | null;
+  /** Scan des précipitations courantes sur toute la planète. */
+  globalRain?: GlobalRainResponse | null;
+  globalRainUnavailable?: boolean;
+  /** La mesure affichée est la dernière valide, plus fraîche garantie. */
+  globalRainStale?: boolean;
   automaticFloods?: AutomaticFloodsResponse | null;
   automaticFloodError?: string | null;
   updatedAt: string;
@@ -106,6 +112,9 @@ export function SimulationInsights({
   weather,
   weatherError,
   weatherStatus,
+  globalRain = null,
+  globalRainUnavailable = false,
+  globalRainStale = false,
   automaticFloods,
   automaticFloodError,
   updatedAt,
@@ -129,15 +138,18 @@ export function SimulationInsights({
   }, [run, frameIndex]);
 
   if (!run) {
-    const activeSensors = offline ? [] : sensors.slice(0, 3);
-    const activeWaterAlerts = offline ? [] : sensors.filter(
+    // Même hors ligne, les dernières valeurs connues restent visibles : le
+    // bandeau et le libellé indiquent qu'elles ne sont pas fraîches. Les vider
+    // donnait l'illusion que la plateforme avait perdu ses fonctionnalités.
+    const activeSensors = sensors.slice(0, 3);
+    const activeWaterAlerts = sensors.filter(
       (sensor) => sensor.kind !== "rain_gauge"
         && sensor.status === "active"
         && sensor.health_status === "online"
         && sensor.alert_level !== "green",
     );
-    const activeRain = offline ? [] : weather.filter((item) => (item.observed_precip_mm_h ?? 0) > 0);
-    const modeledRain = offline ? [] : weather.filter((item) => (item.modeled_precip_mm_h ?? 0) > 0);
+    const activeRain = weather.filter((item) => (item.observed_precip_mm_h ?? 0) > 0);
+    const modeledRain = weather.filter((item) => (item.modeled_precip_mm_h ?? 0) > 0);
     const forecastRain = weather.filter((item) => (item.forecast_intensity_3h_mm_h ?? item.intensity_3h_mm_h) > 0);
     const allRainPoints = [...activeRain, ...modeledRain.filter((m) => !activeRain.some((a) => a.name === m.name && a.source === m.source))];
     const strongestRain = activeRain.reduce<WeatherItem | null>(
@@ -159,7 +171,7 @@ export function SimulationInsights({
 
     return (
       <>
-        {/* Carte Météo Temps Réel — toujours visible avec actualisation continue seconde par seconde */}
+        {/* Carte météo — les valeurs viennent de l'API et d'Open-Meteo ; seule l'horloge est à 1 Hz. */}
         <section className="insight-card weather-realtime-card">
           <header className="card-head">
             <span className="card-icon" style={{ color: "#64b4ff", background: "#64b4ff1f" }}>
@@ -167,14 +179,14 @@ export function SimulationInsights({
             </span>
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
-                <h3>Météo temps réel</h3>
-                <span className="live-pill-badge" title="Flux télémétrique continu 1 Hz">
+                <h3>Météo et précipitations</h3>
+                <span className="live-pill-badge" title="Horloge d'interface à 1 Hz ; les données météo gardent leur propre cadence de rafraîchissement">
                   <span className="live-dot" />
-                  <span>1 Hz EN DIRECT</span>
+                  <span>HORLOGE 1 Hz</span>
                 </span>
               </div>
               <small>
-                {timeString ? `Heure locale : ${timeString}` : "Côte d'Ivoire · flux en direct"}
+                {timeString ? `Heure locale : ${timeString}` : "Monde · horloge locale"}
                 {" · "}synchro il y a {secondsSinceLastUpdate}s
               </small>
             </div>
@@ -192,14 +204,37 @@ export function SimulationInsights({
             )}
           </header>
           <div className="overview-metrics">
-            <div><strong>{weather.length}</strong><span>points météo</span></div>
-            <div><strong>{allRainPoints.length}</strong><span>points en pluie</span></div>
+            <div><strong>{weather.length || "—"}</strong><span>points météo</span></div>
+            <div><strong>{weather.length ? allRainPoints.length : "—"}</strong><span>en pluie · zones vues</span></div>
             <div className={maxIntensity >= 30 ? "metric-alert" : maxIntensity >= 10 ? "metric-warning" : ""}>
               <strong>{maxIntensity > 0 ? maxIntensity.toFixed(1) : "0,0"}</strong>
               <span>mm/h max</span>
             </div>
             <div><strong>{forecastRain.length}</strong><span>prévision pluie</span></div>
           </div>
+          <p className={globalRainStale && globalRain?.available ? "global-rain-note is-stale" : "global-rain-note"}>
+            <strong>Monde entier : </strong>
+            {globalRain?.available && globalRain.rain_points != null
+              ? `${globalRain.rain_points} point(s) en pluie sur ${globalRain.valid_points} points valides`
+              : globalRainUnavailable || !globalRain
+                ? "données indisponibles (aucun zéro affiché)"
+                : "données indisponibles"}
+            {globalRain?.max_precip_mm_h != null ? ` · pic ${globalRain.max_precip_mm_h.toFixed(1)} mm/h` : ""}
+            {globalRain?.failed_points ? ` · ${globalRain.failed_points} point(s) sans donnée` : ""}
+            {globalRainStale && globalRain?.available
+              ? ` · dernière mesure ${formatTime(globalRain.generated_at)} (il y a ${formatAgeSeconds(globalRain.age_seconds)}), actualisation indisponible`
+              : ""}
+            {globalRain?.source && globalRain.source !== "Open-Meteo" ? ` · ${globalRain.source}` : ""}
+            {globalRain?.attribution ? ` · ${globalRain.attribution}` : " · Open-Meteo"}
+          </p>
+          {!!globalRain?.rain_places?.length && (
+            <p className="global-rain-places">
+              <strong>Lieux en pluie : </strong>
+              {globalRain.rain_places.slice(0, 3).map((place) =>
+                `${place.name}${place.detail ? ` (${place.detail})` : ""} — ${place.precip_mm_h.toFixed(1)} mm/h`,
+              ).join(" · ")}
+            </p>
+          )}
           {allRainPoints.length > 0 && (
             <ul className="mini-list rain-mini-list">
               {allRainPoints.slice(0, 5).map((item) => {
@@ -223,7 +258,7 @@ export function SimulationInsights({
                           }}
                         />
                       </div>
-                      <small>{isObserved ? "Mesure rapportée" : "Estimation radar"} · {item.source}</small>
+                      <small>{isObserved ? "Mesure rapportée" : "Estimation modèle"} · {item.source}</small>
                     </div>
                   </li>
                 );
@@ -232,11 +267,11 @@ export function SimulationInsights({
             </ul>
           )}
           {allRainPoints.length === 0 && !offline && !loading && (
-            <p className="empty-note">Aucune pluie détectée actuellement sur les points surveillés.</p>
+            <p className="empty-note">Aucune pluie détectée actuellement sur les zones affichées.</p>
           )}
           {weatherError && <p className="err-msg" role="alert">Météo : {weatherError}</p>}
           {weatherStatus && <small className="card-footer">
-            Collecte continue · {
+            Sources météo · {
               weatherStatus.providers.map((provider) => `${provider.source} : ${provider.status}`).join(" · ")
             }
           </small>}

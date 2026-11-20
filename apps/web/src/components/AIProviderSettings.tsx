@@ -46,8 +46,14 @@ export function AIProviderSettings({ token }: Props) {
     setBusy(provider.id); setError(null); setMessage(null);
     try {
       const models = await fetchFreeModels(token, provider.id, keys[provider.id]?.trim() || undefined);
+      const allowed = new Set(models.map((model) => model.id));
       setCatalogs((current) => ({ ...current, [provider.id]: models }));
-      setSelected((current) => ({ ...current, [provider.id]: current[provider.id] ?? [] }));
+      // Ne conserver que les modèles encore explicitement gratuits : une liste
+      // obsolète provoquerait un refus 422 à l'enregistrement.
+      setSelected((current) => ({
+        ...current,
+        [provider.id]: (current[provider.id] ?? provider.selected_models).filter((id) => allowed.has(id)),
+      }));
       setMessage(models.length ? `${models.length} modèle(s) gratuits confirmés pour ${provider.name}.` : `Aucun modèle gratuit éligible pour ${provider.name}.`);
     } catch (reason) {
       setError((reason as Error).message);
@@ -73,6 +79,10 @@ export function AIProviderSettings({ token }: Props) {
       setError(`Sélectionnez au moins un modèle gratuit dans la liste ci-dessus pour ${provider.name}.`);
       return;
     }
+    if (models.length > 5) {
+      setError(`Cinq modèles maximum par fournisseur (${models.length} sélectionnés). Décochez les modèles en trop.`);
+      return;
+    }
     if (!provider.configured && !key) {
       setError("Saisissez une clé API (8 caractères minimum).");
       return;
@@ -94,13 +104,14 @@ export function AIProviderSettings({ token }: Props) {
       await reload();
       setMessage(`${provider.name} configuré. La clé n'est pas réaffichée.`);
     } catch (reason) {
-      const msg = (reason as Error).message;
+      const err = reason as Error & { status?: number };
+      const msg = err.message;
       const detailMsg = msg.includes("Aucun modèle gratuit")
         ? "Aucun modèle gratuit n'est disponible pour ce fournisseur avec cette clé. Vérifiez la clé ou essayez un autre fournisseur."
         : msg.includes("modèle choisi")
           ? "Un ou plusieurs modèles sélectionnés ne sont pas disponibles (gratuits). Relancez la découverte des modèles."
-          : msg.includes("422")
-            ? "Échec de validation (422) : découvrez d'abord les modèles, sélectionnez au moins un modèle gratuit, et saisissez une clé valide (≥ 8 caractères)."
+          : err.status === 422
+            ? `Échec de validation (422) : ${msg}`
             : msg;
       setError(detailMsg);
     } finally {
@@ -166,10 +177,17 @@ export function AIProviderSettings({ token }: Props) {
                 const position = chosen.indexOf(model.id);
                 return <div className="ai-model" key={model.id}>
                   <label>
-                    <input type="checkbox" checked={position >= 0} onChange={(event) => setSelected((current) => {
-                      const old = current[provider.id] ?? provider.selected_models;
-                      return { ...current, [provider.id]: event.target.checked ? [...old, model.id] : old.filter((id) => id !== model.id) };
-                    })} />
+                    <input type="checkbox" checked={position >= 0} disabled={position < 0 && chosen.length >= 5} onChange={(event) => {
+                      const old = selected[provider.id] ?? provider.selected_models;
+                      if (event.target.checked && old.length >= 5) {
+                        setError("Cinq modèles maximum par fournisseur. Décochez un modèle avant d'en ajouter un autre.");
+                        return;
+                      }
+                      setSelected((current) => {
+                        const list = current[provider.id] ?? provider.selected_models;
+                        return { ...current, [provider.id]: event.target.checked ? [...list, model.id] : list.filter((id) => id !== model.id) };
+                      });
+                    }} />
                     <span>{model.name} <small>{model.id}{model.supports_images ? " · vision" : ""}</small></span>
                   </label>
                   {position >= 0 && <span className="ai-model-order">
@@ -178,6 +196,7 @@ export function AIProviderSettings({ token }: Props) {
                   </span>}
                 </div>;
               })}
+              <p className="ai-model-limit">{chosen.length}/5 modèles maximum par fournisseur.</p>
             </fieldset>}
             <label className="ai-consent">
               <input type="checkbox" checked={enabled[provider.id] ?? (provider.configured ? provider.enabled : true)} onChange={(event) => setEnabled((current) => ({ ...current, [provider.id]: event.target.checked }))} />

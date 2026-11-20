@@ -32,7 +32,11 @@ export type IconName =
   | "volume"
   | "volume-off"
   | "sparkles"
-  | "activity";
+  | "activity"
+  | "locate"
+  | "night"
+  | "radar"
+  | "borders";
 
 const paths: Record<IconName, string[]> = {
   map: ["M3 6.5 9 3l6 3.5L21 3v14.5L15 21l-6-3.5L3 21V6.5Z", "M9 3v14.5M15 6.5V21"],
@@ -67,6 +71,10 @@ const paths: Record<IconName, string[]> = {
   "volume-off": ["M11 5L6 9H2v6h4l5 4V5Z", "M23 9l-6 6", "M17 9l6 6"],
   sparkles: ["M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3Z", "M19 17l.8 1.8 1.8.8-1.8.8-.8 1.8-.8-1.8-1.8-.8 1.8-.8.8-1.8Z"],
   activity: ["M22 12h-4l-3 9L9 3l-3 9H2"],
+  locate: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z", "M12 8.5v7M8.5 12h7", "M12 1.8v2.4M12 19.8v2.4M1.8 12h2.4M19.8 12h2.4"],
+  night: ["M20.5 14.6A8.6 8.6 0 1 1 9.4 3.5a7 7 0 0 0 11.1 11.1Z", "M17 4.5l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6.6-1.6Z"],
+  radar: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z", "M12 12 19.4 4.6", "M12 16.4a4.4 4.4 0 1 0 0-8.8 4.4 4.4 0 0 0 0 8.8Z", "M12 2.6v1.8M2.6 12h1.8M12 21.4v-1.8M21.4 12h-1.8"],
+  borders: ["M3.5 7.5 9 4l6 3.5 5.5-3.5v11L15 18.5 9 15l-5.5 3.5v-11Z", "M9 4v11M15 7.5v11"],
 };
 
 export function Icon({ name, size = 18, ...rest }: { name: IconName; size?: number } & Omit<SVGProps<SVGSVGElement>, "name">) {

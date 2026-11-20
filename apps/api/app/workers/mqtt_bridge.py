@@ -1,4 +1,4 @@
-"""Pont MQTT → IntelliFlood : écoute `intelliflood/sensors/<code>/readings` et enregistre les mesures.
+"""Pont MQTT → MasterEarth : écoute `intelliflood/sensors/<code>/readings` et enregistre les mesures.
 
 Charge utile JSON : {"samples_cm": [..], "ts": "2026-10-31T12:00:00Z"}  (ts facultatif).
 Lancement : python -m app.workers.mqtt_bridge   (variables MQTT_HOST, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD, MQTT_TLS)

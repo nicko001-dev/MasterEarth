@@ -10,7 +10,7 @@ const application = createStandaloneApplication({
 });
 
 application.start().catch((error) => {
-  console.error("IntelliFlood World initialization failed:", error);
+  console.error("MasterEarth World initialization failed:", error);
   const loaderStatus = document.querySelector('#loading-screen .loader-status');
   loaderStatus.textContent = t('Error: {message}', {
     message: describeError(error),

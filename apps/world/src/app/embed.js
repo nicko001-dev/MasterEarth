@@ -108,7 +108,7 @@ export function keepPanelRendering(
     (_scene, error) => {
       failed = true;
       console.error(
-        "[IntelliFlood World panel] render error:",
+        "[MasterEarth World panel] render error:",
         describeError(error),
       );
     },

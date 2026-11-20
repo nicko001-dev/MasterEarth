@@ -10,8 +10,8 @@ interface StatusCardProps {
 
 export function StatusCard({
   milestone = "M0.3",
-  title = "IntelliFlood",
-  description = "Architecture interne de base établie.",
+  title = "MasterEarth",
+  description = "Surveillance planétaire des risques naturels en temps réel.",
 }: StatusCardProps) {
   return (
     <section className="card">

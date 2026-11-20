@@ -155,8 +155,21 @@ def assistant(
             headers={"Retry-After": "300"},
         )
     effective_actor = actor or _AnonymousUser()
+    client_context = (
+        body.client_context.model_dump(exclude_none=True)
+        if body.client_context is not None
+        else None
+    )
     try:
-        return ai.answer(db, effective_actor, body.message, body.mode, body.surface)
+        return ai.answer(
+            db,
+            effective_actor,
+            body.message,
+            body.mode,
+            body.surface,
+            client_context=client_context,
+            allow_actions=body.allow_actions,
+        )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
